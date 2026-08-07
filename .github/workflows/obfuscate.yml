@@ -1,0 +1,27 @@
+name: Obfuscate Lua Script
+
+on:
+  workflow_dispatch:
+
+jobs:
+  obfuscate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Lua
+        uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.1.5"
+      
+      - name: Obfuscate script
+        run: |
+          lua cli.lua --preset Medium my-scripts/gg_file.lua
+      
+      - name: Upload obfuscated file
+        uses: actions/upload-artifact@v4
+        with:
+          name: obfuscated-script
+          path: my-scripts/gg_file.obfuscated.lua
