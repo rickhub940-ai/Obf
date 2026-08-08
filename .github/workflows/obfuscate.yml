@@ -12,16 +12,19 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Setup Lua
-        uses: leafo/gh-actions-lua@v10
+        uses: leafo/gh-actions-lua@v11   # ← เปลี่ยนจาก v10 เป็น v11
         with:
           luaVersion: "5.1.5"
       
+      - name: Setup LuaRocks
+        uses: leafo/gh-actions-luarocks@v4
+      
       - name: Obfuscate script
         run: |
-          lua cli.lua --preset Medium my-scripts/gg_file.lua
+          lua cli.lua --preset Medium gg_file.lua
       
       - name: Upload obfuscated file
         uses: actions/upload-artifact@v4
         with:
           name: obfuscated-script
-          path: my-scripts/gg_file.obfuscated.lua
+          path: gg_file.obfuscated.lua
