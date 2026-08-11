@@ -23,7 +23,13 @@ AntiTamper.SettingsDescriptor = {
 }
 
 function AntiTamper:init(settings)
-    self.UseDebug = settings.UseDebug
+    settings = settings or {}
+
+    if settings.UseDebug == nil then
+        self.UseDebug = true
+    else
+        self.UseDebug = settings.UseDebug
+    end
 end
 
 function AntiTamper:apply(ast, pipeline)
@@ -37,13 +43,8 @@ function AntiTamper:apply(ast, pipeline)
         return ast
     end
 
-    -- =============================================================
-    -- IMPORTANT
-    -- Outer string uses [[ ]]
-    -- Inner Lua strings use [=[ ]=]
-    -- =============================================================
+    local code = [=[
 
-    local code = [[
 do
 
     -- =============================================================
@@ -60,7 +61,7 @@ do
     end)
 
     -- =============================================================
-    -- GENV FLOOD
+    -- GENv FLOOD
     -- =============================================================
 
     local function _009_flood_genv_scope()
@@ -220,9 +221,7 @@ do
                             rawget(_G, "_009_TEST_WRITE_CHECK")
 
                         _G._009_TEST_WRITE_CHECK = true
-
-                        _G._009_TEST_WRITE_CHECK =
-                            oldWriteCheck
+                        _G._009_TEST_WRITE_CHECK = oldWriteCheck
 
                     end)
 
@@ -418,17 +417,17 @@ do
 
             if type(l) == "function" then
 
-                local f1 = l([=[
+                local f1 = l([==[
 return pcall(function()
 return 1/"a"
 end)
-]=])
+]==])
 
-                local f2 = l([=[
+                local f2 = l([==[
 return pcall(function()
 return 1/"a"
 end)
-]=])
+]==])
 
                 if type(f1) == "function"
                 and type(f2) == "function" then
@@ -627,10 +626,11 @@ end)
     end
 
 end
-]]
+
+]=]
 
     -- =============================================================
-    -- Parse generated Anti-Tamper code
+    -- Parse generated code
     -- =============================================================
 
     local parsed = Parser:new({
