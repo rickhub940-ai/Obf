@@ -1,300 +1,253 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
--- util.lua
--- This file Provides some utility functions
+-- EncryptStrings.lua
+--
+-- This Script provides a Simple Obfuscation Step that encrypts strings
 
-local logger = require("logger");
-local bit32  = require("prometheus.bit").bit32;
+local Step = require("prometheus.step")
+local Ast = require("prometheus.ast")
+local Scope = require("prometheus.scope")
+local RandomStrings = require("prometheus.randomStrings")
+local Parser = require("prometheus.parser")
+local Enums = require("prometheus.enums")
+local logger = require("logger")
+local visitast = require("prometheus.visitast");
+local util     = require("prometheus.util")
+local AstKind = Ast.AstKind;
 
-local MAX_UNPACK_COUNT = 195;
+local EncryptStrings = Step:extend()
+EncryptStrings.Description = "This Step will encrypt strings within your Program."
+EncryptStrings.Name = "Encrypt Strings"
 
--- สร้างชุดตัวอักษรสำหรับแปลง (a-z, A-Z)
-local function get_encryption_chars()
-    local chars = {}
-    for i = 97, 122 do table.insert(chars, string.char(i)) end  -- a-z
-    for i = 65, 90 do table.insert(chars, string.char(i)) end   -- A-Z
-    return chars
-end
+EncryptStrings.SettingsDescriptor = {}
 
-local encryption_chars = get_encryption_chars()
+function EncryptStrings:init(settings) end
 
-local function lookupify(tb)
-	local tb2 = {};
-	for _, v in ipairs(tb) do
-		tb2[v] = true
+function EncryptStrings:CreateEncrypionService()
+	local usedSeeds = {};
+
+	local secret_key_6 = math.random(0, 63)
+	local secret_key_7 = math.random(0, 127)
+	local secret_key_44 = math.random(0, 17592186044415)
+	local secret_key_8 = math.random(0, 255);
+
+	local floor = math.floor
+
+	local function primitive_root_257(idx)
+		local g, m, d = 1, 128, 2 * idx + 1
+		repeat
+			g, m, d = g * g * (d >= m and 3 or 1) % 257, m / 2, d % m
+		until m < 1
+		return g
 	end
-	return tb2
-end
 
-local function unlookupify(tb)
-	local tb2 = {};
-	for v, _ in pairs(tb) do
-		table.insert(tb2, v);
+	local param_mul_8 = primitive_root_257(secret_key_7)
+	local param_mul_45 = secret_key_6 * 4 + 1
+	local param_add_45 = secret_key_44 * 2 + 1
+
+	local state_45 = 0
+	local state_8 = 2
+
+	local prev_values = {}
+	local function set_seed(seed_53)
+		state_45 = seed_53 % 35184372088832
+		state_8 = seed_53 % 255 + 2
+		prev_values = {}
 	end
-	return tb2;
-end
 
--- ฟังก์ชัน escape แบบใหม่ (แปลงเป็นตัวอักษร a-z, A-Z)
-local function escape(str)
-    local result = {}
-    for i = 1, #str do
-        local byte = string.byte(str, i)
-        -- แปลง byte เป็นตัวอักษร a-z, A-Z
-        local char_index = (byte % #encryption_chars) + 1
-        result[i] = encryption_chars[char_index]
-    end
-    return table.concat(result)
-end
-
--- ฟังก์ชัน unescape (แปลงกลับจากตัวอักษรเป็น byte เดิม)
-local function unescape(str)
-    local result = {}
-    local char_to_byte = {}
-    for i, v in ipairs(encryption_chars) do
-        char_to_byte[v] = i - 1
-    end
-    
-    for i = 1, #str do
-        local char = string.sub(str, i, i)
-        local byte = char_to_byte[char] or 0
-        result[i] = string.char(byte)
-    end
-    return table.concat(result)
-end
-
-local function chararray(str)
-	local tb = {};
-	for i = 1, str:len(), 1 do
-		table.insert(tb, str:sub(i, i));
+	local function gen_seed()
+		local seed;
+		repeat
+			seed = math.random(0, 35184372088832);
+		until not usedSeeds[seed];
+		usedSeeds[seed] = true;
+		return seed;
 	end
-	return tb;
-end
 
-local function keys(tb)
-	local keyset={}
-	local n=0
-	for k,v in pairs(tb) do
-		n=n+1
-		keyset[n]=k
+	local function get_random_32()
+		state_45 = (state_45 * param_mul_45 + param_add_45) % 35184372088832
+		repeat
+			state_8 = state_8 * param_mul_8 % 257
+		until state_8 ~= 1
+		local r = state_8 % 32
+		local n = floor(state_45 / 2 ^ (13 - (state_8 - r) / 32)) % 2 ^ 32 / 2 ^ r
+		return floor(n % 1 * 2 ^ 32) + floor(n)
 	end
-	return keyset
-end
 
-local utf8char;
+	local function get_next_pseudo_random_byte()
+		if #prev_values == 0 then
+			local rnd = get_random_32()
+			local low_16 = rnd % 65536
+			local high_16 = (rnd - low_16) / 65536
+			local b1 = low_16 % 256
+			local b2 = (low_16 - b1) / 256
+			local b3 = high_16 % 256
+			local b4 = (high_16 - b3) / 256
+			prev_values = { b1, b2, b3, b4 }
+		end
+		return table.remove(prev_values)
+	end
+
+	-- สร้างชุดตัวอักษร a-z, A-Z (52 ตัว)
+	local encryption_chars = {}
+	for i = 97, 122 do table.insert(encryption_chars, string.char(i)) end
+	for i = 65, 90 do table.insert(encryption_chars, string.char(i)) end
+
+	-- ฟังก์ชันเข้ารหัส (คืนค่าเป็นตัวอักษร a-z, A-Z และ seed เป็น string)
+	local function encrypt(str)
+		local seed = gen_seed();
+		set_seed(seed)
+		local len = string.len(str)
+		local out = {}
+		local prevVal = secret_key_8;
+		for i = 1, len do
+			local byte = string.byte(str, i);
+			local encoded = (byte - (get_next_pseudo_random_byte() + prevVal)) % 256;
+			local char_index = (encoded % #encryption_chars) + 1;
+			out[i] = encryption_chars[char_index];
+			prevVal = byte;
+		end
+		return table.concat(out), tostring(seed);
+	end
+
+	-- ฟังก์ชันถอดรหัส (ใช้ใน genCode)
+	local function build_charmap()
+		local chars = {}
+		for i = 97, 122 do table.insert(chars, string.char(i)) end
+		for i = 65, 90 do table.insert(chars, string.char(i)) end
+		local charmap_str = "{"
+		for i, v in ipairs(chars) do
+			charmap_str = charmap_str .. "['" .. v .. "']=" .. (i-1) .. ","
+		end
+		charmap_str = charmap_str .. "}"
+		return charmap_str
+	end
+
+	local function genCode()
+		local charmap_str = build_charmap()
+		
+		local code = [[
 do
-	local string_char = string.char
-	function utf8char(cp)
-	  if cp < 128 then
-		return string_char(cp)
-	  end
-	  local suffix = cp % 64
-	  local c4 = 128 + suffix
-	  cp = (cp - suffix) / 64
-	  if cp < 32 then
-		return string_char(192 + cp, c4)
-	  end
-	  suffix = cp % 64
-	  local c3 = 128 + suffix
-	  cp = (cp - suffix) / 64
-	  if cp < 16 then
-		return string_char(224 + cp, c3, c4)
-	  end
-	  suffix = cp % 64
-	  cp = (cp - suffix) / 64
-	  return string_char(240 + cp, 128 + suffix, c3, c4)
-	end
-  end
+	local floor = math.floor
+	local random = math.random;
+	local remove = table.remove;
+	local char = string.char;
+	local state_45 = 0
+	local state_8 = 2
+	local charmap = ]] .. charmap_str .. [[;
 
-local function shuffle(tb)
-	for i = #tb, 2, -1 do
-		local j = math.random(i)
-		tb[i], tb[j] = tb[j], tb[i]
+	local prev_values = {}
+	local function get_next_pseudo_random_byte()
+		if #prev_values == 0 then
+			state_45 = (state_45 * ]] .. tostring(param_mul_45) .. [[ + ]] .. tostring(param_add_45) .. [[) % 35184372088832
+			repeat
+				state_8 = state_8 * ]] .. tostring(param_mul_8) .. [[ % 257
+			until state_8 ~= 1
+			local r = state_8 % 32
+			local n = floor(state_45 / 2 ^ (13 - (state_8 - r) / 32)) % 2 ^ 32 / 2 ^ r
+			local rnd = floor(n % 1 * 2 ^ 32) + floor(n)
+			local low_16 = rnd % 65536
+			local high_16 = (rnd - low_16) / 65536
+			local b1 = low_16 % 256
+			local b2 = (low_16 - b1) / 256
+			local b3 = high_16 % 256
+			local b4 = (high_16 - b3) / 256
+			prev_values = { b1, b2, b3, b4 }
+		end
+		return table.remove(prev_values)
 	end
-	return tb
+
+	local realStrings = {};
+	STRINGS = setmetatable({}, {
+		__index = realStrings;
+		__metatable = nil;
+	});
+  	function DECRYPT(str, seed)
+		local realStringsLocal = realStrings;
+		if(realStringsLocal[seed]) then else
+			prev_values = {};
+			state_45 = tonumber(seed) % 35184372088832
+			state_8 = tonumber(seed) % 255 + 2
+			local len = string.len(str);
+			realStringsLocal[seed] = "";
+			local prevVal = ]] .. tostring(secret_key_8) .. [[;
+			for i=1, len do
+				local char = string.sub(str, i, i);
+				local byte = charmap[char] or 0;
+				prevVal = (byte + get_next_pseudo_random_byte() + prevVal) % 256
+				realStringsLocal[seed] = realStringsLocal[seed] .. char(prevVal);
+			end
+		end
+		return seed;
+	end
+end]]
+
+		return code;
+	end
+
+	return {
+		encrypt = encrypt,
+		param_mul_45 = param_mul_45,
+		param_mul_8 = param_mul_8,
+		param_add_45 = param_add_45,
+		secret_key_8 = secret_key_8,
+		genCode = genCode,
+	}
 end
 
-local function shuffle_string(str)
-    local len = #str
-    local t = {}
-    for i = 1, len do
-        t[i] = string.sub(str, i, i)
-    end
-    for i = 1, len do
-        local j = math.random(i, len)
-        t[i], t[j] = t[j], t[i]
-    end
-    return table.concat(t)
-end
+function EncryptStrings:apply(ast, pipeline)
+	local Encryptor = self:CreateEncrypionService();
 
-local function readDouble(bytes) 
-	local sign = 1
-	local mantissa = bytes[2] % 2^4
-	for i = 3, 8 do
-		mantissa = mantissa * 256 + bytes[i]
-	end
-	if bytes[1] > 127 then sign = -1 end
-	local exponent = (bytes[1] % 128) * 2^4 + math.floor(bytes[2] / 2^4)
+	local code = Encryptor.genCode();
+	local newAst = Parser:new({ LuaVersion = Enums.LuaVersion.Lua51 }):parse(code);
+	local doStat = newAst.body.statements[1];
 
-	if exponent == 0 then
-		return 0
-	end
-	mantissa = (math.ldexp(mantissa, -52) + 1) * sign
-	return math.ldexp(mantissa, exponent - 1023)
-end
-
-local function writeDouble(num)
-	local bytes = {0,0,0,0, 0,0,0,0}
-	if num == 0 then
-		return bytes
-	end
-	local anum = math.abs(num)
-
-	local mantissa, exponent = math.frexp(anum)
-	exponent = exponent - 1
-	mantissa = mantissa * 2 - 1
-	local sign = num ~= anum and 128 or 0
-	exponent = exponent + 1023
-
-	bytes[1] = sign + math.floor(exponent / 2^4)
-	mantissa = mantissa * 2^4
-	local currentmantissa = math.floor(mantissa)
-	mantissa = mantissa - currentmantissa
-	bytes[2] = (exponent % 2^4) * 2^4 + currentmantissa
-	for i= 3, 8 do
-		mantissa = mantissa * 2^8
-		currentmantissa = math.floor(mantissa)
-		mantissa = mantissa - currentmantissa
-		bytes[i] = currentmantissa
-	end
-	return bytes
-end
-
-local function writeU16(u16)
-	if (u16 < 0 or u16 > 65535) then
-		logger:error(string.format("u16 out of bounds: %d", u16));
-	end
-	local lower = bit32.band(u16, 255);
-	local upper = bit32.rshift(u16, 8);
-	return {lower, upper}
-end
-
-local function readU16(arr)
-	return bit32.bor(arr[1], bit32.lshift(arr[2], 8));
-end
-
-local function writeU24(u24)
-	if(u24 < 0 or u24 > 16777215) then
-		logger:error(string.format("u24 out of bounds: %d", u24));
-	end
+	local scope = ast.body.scope;
+	local decryptVar = scope:addVariable();
+	local stringsVar = scope:addVariable();
 	
-	local arr = {};
-	for i = 0, 2 do
-		arr[i + 1] = bit32.band(bit32.rshift(u24, 8 * i), 255);
-	end
-	return arr;
+	doStat.body.scope:setParent(ast.body.scope);
+
+	visitast(newAst, nil, function(node, data)
+		if(node.kind == AstKind.FunctionDeclaration) then
+			if(node.scope:getVariableName(node.id) == "DECRYPT") then
+				data.scope:removeReferenceToHigherScope(node.scope, node.id);
+				data.scope:addReferenceToHigherScope(scope, decryptVar);
+				node.scope = scope;
+				node.id    = decryptVar;
+			end
+		end
+		if(node.kind == AstKind.AssignmentVariable or node.kind == AstKind.VariableExpression) then
+			if(node.scope:getVariableName(node.id) == "STRINGS") then
+				data.scope:removeReferenceToHigherScope(node.scope, node.id);
+				data.scope:addReferenceToHigherScope(scope, stringsVar);
+				node.scope = scope;
+				node.id    = stringsVar;
+			end
+		end
+	end)
+
+	visitast(ast, nil, function(node, data)
+		if(node.kind == AstKind.StringExpression) then
+			data.scope:addReferenceToHigherScope(scope, stringsVar);
+			data.scope:addReferenceToHigherScope(scope, decryptVar);
+			local encrypted, seed = Encryptor.encrypt(node.value);
+			-- encrypted และ seed เป็น string ทั้งคู่ (มี " ครอบโดย Ast.StringExpression)
+			return Ast.IndexExpression(
+				Ast.VariableExpression(scope, stringsVar), 
+				Ast.FunctionCallExpression(
+					Ast.VariableExpression(scope, decryptVar), {
+						Ast.StringExpression(encrypted), 
+						Ast.StringExpression(seed)
+					}
+				)
+			);
+		end
+	end)
+
+	table.insert(ast.body.statements, 1, doStat);
+	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(scope, util.shuffle{ decryptVar, stringsVar }, {}));
+	return ast
 end
 
-local function readU24(arr)
-	local val = 0;
-
-	for i = 0, 2 do
-		val = bit32.bor(val, bit32.lshift(arr[i + 1], 8 * i));
-	end
-
-	return val;
-end
-
-local function writeU32(u32)
-	if(u32 < 0 or u32 > 4294967295) then
-		logger:error(string.format("u32 out of bounds: %d", u32));
-	end
-
-	local arr = {};
-	for i = 0, 3 do
-		arr[i + 1] = bit32.band(bit32.rshift(u32, 8 * i), 255);
-	end
-	return arr;
-end
-
-local function readU32(arr)
-	local val = 0;
-
-	for i = 0, 3 do
-		val = bit32.bor(val, bit32.lshift(arr[i + 1], 8 * i));
-	end
-
-	return val;
-end
-
-local function bytesToString(arr)
-	local lenght = arr.n or #arr;
-
-	if lenght < MAX_UNPACK_COUNT then
-		return string.char(table.unpack(arr))
-	end
-
-	local str = "";
-	local overflow = lenght % MAX_UNPACK_COUNT;
-
-	for i = 1, (#arr - overflow) / MAX_UNPACK_COUNT do
-		str = str .. string.char(table.unpack(arr, (i - 1) * MAX_UNPACK_COUNT + 1, i * MAX_UNPACK_COUNT));
-	end
-
-	return str..(overflow > 0 and string.char(table.unpack(arr, lenght - overflow + 1, lenght)) or "");
-end
-
-local function isNaN(n)
-	return type(n) == "number" and n ~= n;
-end
-
-local function isInt(n)
-	return math.floor(n) == n;
-end
-
-local function isU32(n)
-	return n >= 0 and n <= 4294967295 and isInt(n);
-end
-
-local function toBits(num)
-    -- returns a table of bits, least significant first.
-    local t={} -- will contain the bits
-	local rest;
-    while num>0 do
-        rest=math.fmod(num,2)
-        t[#t+1]=rest
-        num=(num-rest)/2
-    end
-    return t
-end
-
-local function readonly(obj)
-	local r = newproxy(true);
-	getmetatable(r).__index = obj;
-	return r;
-end
-
-return {
-	lookupify = lookupify,
-	unlookupify = unlookupify,
-	escape = escape,
-	unescape = unescape,  -- เพิ่มฟังก์ชัน unescape
-	chararray = chararray,
-	keys = keys,
-	shuffle = shuffle,
-	shuffle_string = shuffle_string,
-	readDouble = readDouble,
-	writeDouble = writeDouble,
-	readU16 = readU16,
-	writeU16 = writeU16,
-	readU32 = readU32,
-	writeU32 = writeU32,
-	readU24 = readU24,
-	writeU24 = writeU24,
-	isNaN = isNaN,
-	isU32 = isU32,
-	isInt = isInt,
-	utf8char = utf8char,
-	toBits = toBits,
-	bytesToString = bytesToString,
-	readonly = readonly,
-}
+return EncryptStrings
