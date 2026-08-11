@@ -8,6 +8,16 @@ local bit32  = require("prometheus.bit").bit32;
 
 local MAX_UNPACK_COUNT = 195;
 
+-- สร้างชุดตัวอักษรสำหรับแปลง (a-z, A-Z)
+local function get_encryption_chars()
+    local chars = {}
+    for i = 97, 122 do table.insert(chars, string.char(i)) end  -- a-z
+    for i = 65, 90 do table.insert(chars, string.char(i)) end   -- A-Z
+    return chars
+end
+
+local encryption_chars = get_encryption_chars()
+
 local function lookupify(tb)
 	local tb2 = {};
 	for _, v in ipairs(tb) do
@@ -24,40 +34,32 @@ local function unlookupify(tb)
 	return tb2;
 end
 
+-- ฟังก์ชัน escape แบบใหม่ (แปลงเป็นตัวอักษร a-z, A-Z)
 local function escape(str)
-	return str:gsub(".", function(char)
-		if char:match("[^ %-~\n\t\a\b\v\r\"\']") then -- Check if non Printable ASCII Character
-			return string.format("\\%03d", string.byte(char))
-		end
-		if(char == "\\") then
-			return "\\\\";
-		end
-		if(char == "\n") then
-			return "\\n";
-		end
-		if(char == "\r") then
-			return "\\r";
-		end
-		if(char == "\t") then
-			return "\\t";
-		end
-		if(char == "\a") then
-			return "\\a";
-		end
-		if(char == "\b") then
-			return "\\b";
-		end
-		if(char == "\v") then
-			return "\\v";
-		end
-		if(char == "\"") then
-			return "\\\"";
-		end
-		if(char == "\'") then
-			return "\\\'";
-		end
-		return char;
-	end)
+    local result = {}
+    for i = 1, #str do
+        local byte = string.byte(str, i)
+        -- แปลง byte เป็นตัวอักษร a-z, A-Z
+        local char_index = (byte % #encryption_chars) + 1
+        result[i] = encryption_chars[char_index]
+    end
+    return table.concat(result)
+end
+
+-- ฟังก์ชัน unescape (แปลงกลับจากตัวอักษรเป็น byte เดิม)
+local function unescape(str)
+    local result = {}
+    local char_to_byte = {}
+    for i, v in ipairs(encryption_chars) do
+        char_to_byte[v] = i - 1
+    end
+    
+    for i = 1, #str do
+        local char = string.sub(str, i, i)
+        local byte = char_to_byte[char] or 0
+        result[i] = string.char(byte)
+    end
+    return table.concat(result)
 end
 
 local function chararray(str)
@@ -110,6 +112,7 @@ local function shuffle(tb)
 	end
 	return tb
 end
+
 local function shuffle_string(str)
     local len = #str
     local t = {}
@@ -264,7 +267,6 @@ local function toBits(num)
     return t
 end
 
-
 local function readonly(obj)
 	local r = newproxy(true);
 	getmetatable(r).__index = obj;
@@ -275,6 +277,7 @@ return {
 	lookupify = lookupify,
 	unlookupify = unlookupify,
 	escape = escape,
+	unescape = unescape,  -- เพิ่มฟังก์ชัน unescape
 	chararray = chararray,
 	keys = keys,
 	shuffle = shuffle,
