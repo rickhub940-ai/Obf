@@ -1,12 +1,9 @@
 {
-  "name": "prometheus-obfuscator-api",
+  "name": "obf",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "vercel dev"
-  },
-  "engines": {
-    "node": "22.x"
+  "dependencies": {
+    "fengari": "^0.1.4"
   }
 }
