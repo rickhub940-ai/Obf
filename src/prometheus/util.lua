@@ -1,13 +1,12 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- util.lua
--- Utility functions for Prometheus Obfuscator
+-- This file Provides some utility functions
 
 local logger = require("logger")
 local bit32 = require("prometheus.bit").bit32
 
-local MAX_UNPACK_COUNT = 0xC3 -- 195 in Hex Notation
-local unpack = unpack or table.unpack
+local MAX_UNPACK_COUNT = 195
 
 local function lookupify(tb)
 	local tb2 = {}
@@ -25,33 +24,68 @@ local function unlookupify(tb)
 	return tb2
 end
 
--- Fixed Escape Function for Hex Strings & Safe Literals
 local function escape(str)
 	return str:gsub(".", function(char)
-		if char == "\n" then return "\\n" end
-		if char == "\r" then return "\\r" end
-		if char == "\t" then return "\\t" end
-		if char == "\"" then return "\\\"" end
-		if char == "'" then return "\\'" end
-		
+		if char:match("[^ %-~\n\t\a\b\v\r\"']") then
+			return string.format("\\%03d", string.byte(char))
+		end
+
+		if char == "\\" then
+			return "\\\\"
+		end
+
+		if char == "\n" then
+			return "\\n"
+		end
+
+		if char == "\r" then
+			return "\\r"
+		end
+
+		if char == "\t" then
+			return "\\t"
+		end
+
+		if char == "\a" then
+			return "\\a"
+		end
+
+		if char == "\b" then
+			return "\\b"
+		end
+
+		if char == "\v" then
+			return "\\v"
+		end
+
+		if char == "\"" then
+			return "\\\""
+		end
+
+		if char == "'" then
+			return "\\'"
+		end
+
 		return char
 	end)
 end
 
 local function chararray(str)
 	local tb = {}
-	for i = 0x1, #str do
+
+	for i = 1, #str do
 		table.insert(tb, str:sub(i, i))
 	end
+
 	return tb
 end
 
 local function keys(tb)
 	local keyset = {}
-	local n = 0x0
+	local n = 0
 
 	for k, _ in pairs(tb) do
-		n = n + 0x1
+		n = n + 1
 		keyset[n] = k
 	end
 
@@ -59,38 +93,39 @@ local function keys(tb)
 end
 
 local utf8char
+
 do
 	local string_char = string.char
 
 	function utf8char(cp)
-		if cp < 0x80 then
+		if cp < 128 then
 			return string_char(cp)
 		end
 
-		local suffix = cp % 0x40
-		local c4 = 0x80 + suffix
+		local suffix = cp % 64
+		local c4 = 128 + suffix
 
-		cp = (cp - suffix) / 0x40
+		cp = (cp - suffix) / 64
 
-		if cp < 0x20 then
-			return string_char(0xC0 + cp, c4)
+		if cp < 32 then
+			return string_char(192 + cp, c4)
 		end
 
-		suffix = cp % 0x40
-		local c3 = 0x80 + suffix
+		suffix = cp % 64
+		local c3 = 128 + suffix
 
-		cp = (cp - suffix) / 0x40
+		cp = (cp - suffix) / 64
 
-		if cp < 0x10 then
-			return string_char(0xE0 + cp, c3, c4)
+		if cp < 16 then
+			return string_char(224 + cp, c3, c4)
 		end
 
-		suffix = cp % 0x40
-		cp = (cp - suffix) / 0x40
+		suffix = cp % 64
+		cp = (cp - suffix) / 64
 
 		return string_char(
-			0xF0 + cp,
-			0x80 + suffix,
+			240 + cp,
+			128 + suffix,
 			c3,
 			c4
 		)
@@ -98,10 +133,11 @@ do
 end
 
 local function shuffle(tb)
-	for i = #tb, 0x2, -1 do
+	for i = #tb, 2, -1 do
 		local j = math.random(i)
 		tb[i], tb[j] = tb[j], tb[i]
 	end
+
 	return tb
 end
 
@@ -109,11 +145,11 @@ local function shuffle_string(str)
 	local len = #str
 	local t = {}
 
-	for i = 0x1, len do
+	for i = 1, len do
 		t[i] = str:sub(i, i)
 	end
 
-	for i = 0x1, len do
+	for i = 1, len do
 		local j = math.random(i, len)
 		t[i], t[j] = t[j], t[i]
 	end
@@ -122,115 +158,207 @@ local function shuffle_string(str)
 end
 
 local function readDouble(bytes)
-	local sign = 0x1
-	local mantissa = bytes[0x2] % 0x10
+	local sign = 1
 
-	for i = 0x3, 0x8 do
-		mantissa = mantissa * 0x100 + bytes[i]
+	local mantissa =
+		bytes[2] % 2^4
+
+	for i = 3, 8 do
+		mantissa =
+			mantissa * 256 + bytes[i]
 	end
 
-	if bytes[0x1] > 0x7F then
-		sign = -0x1
+	if bytes[1] > 127 then
+		sign = -1
 	end
 
-	local exponent = (bytes[0x1] % 0x80) * 0x10 + math.floor(bytes[0x2] / 0x10)
+	local exponent =
+		(bytes[1] % 128) * 2^4
+		+ math.floor(bytes[2] / 2^4)
 
-	if exponent == 0x0 then
-		return 0x0
+	if exponent == 0 then
+		return 0
 	end
 
-	mantissa = (math.ldexp(mantissa, -52) + 0x1) * sign
-	return math.ldexp(mantissa, exponent - 1023)
+	mantissa =
+		(math.ldexp(mantissa, -52) + 1)
+		* sign
+
+	return math.ldexp(
+		mantissa,
+		exponent - 1023
+	)
 end
 
 local function writeDouble(num)
-	local bytes = { 0, 0, 0, 0, 0, 0, 0, 0 }
+	local bytes = {
+		0, 0, 0, 0,
+		0, 0, 0, 0
+	}
 
 	if num == 0 then
 		return bytes
 	end
 
 	local anum = math.abs(num)
-	local mantissa, exponent = math.frexp(anum)
+
+	local mantissa, exponent =
+		math.frexp(anum)
 
 	exponent = exponent - 1
 	mantissa = mantissa * 2 - 1
 
-	local sign = (num ~= anum) and 0x80 or 0x0
-	exponent = exponent + 1023
+	local sign =
+		num ~= anum and 128 or 0
 
-	bytes[1] = sign + math.floor(exponent / 0x10)
+	exponent =
+		exponent + 1023
 
-	mantissa = mantissa * 0x10
-	local currentmantissa = math.floor(mantissa)
-	mantissa = mantissa - currentmantissa
+	bytes[1] =
+		sign + math.floor(exponent / 2^4)
 
-	bytes[2] = (exponent % 0x10) * 0x10 + currentmantissa
+	mantissa =
+		mantissa * 2^4
+
+	local currentmantissa =
+		math.floor(mantissa)
+
+	mantissa =
+		mantissa - currentmantissa
+
+	bytes[2] =
+		(exponent % 2^4) * 2^4
+		+ currentmantissa
 
 	for i = 3, 8 do
-		mantissa = mantissa * 0x100
-		currentmantissa = math.floor(mantissa)
-		mantissa = mantissa - currentmantissa
-		bytes[i] = currentmantissa
+		mantissa =
+			mantissa * 2^8
+
+		currentmantissa =
+			math.floor(mantissa)
+
+		mantissa =
+			mantissa - currentmantissa
+
+		bytes[i] =
+			currentmantissa
 	end
 
 	return bytes
 end
 
 local function writeU16(u16)
-	if u16 < 0x0 or u16 > 0xFFFF then
-		logger:error(string.format("u16 out of bounds: %d", u16))
+	if u16 < 0 or u16 > 65535 then
+		logger:error(
+			string.format(
+				"u16 out of bounds: %d",
+				u16
+			)
+		)
 	end
 
-	local lower = bit32.band(u16, 0xFF)
-	local upper = bit32.rshift(u16, 0x8)
+	local lower =
+		bit32.band(u16, 255)
 
-	return { lower, upper }
+	local upper =
+		bit32.rshift(u16, 8)
+
+	return {
+		lower,
+		upper
+	}
 end
 
 local function readU16(arr)
-	return bit32.bor(arr[1], bit32.lshift(arr[2], 0x8))
+	return bit32.bor(
+		arr[1],
+		bit32.lshift(arr[2], 8)
+	)
 end
 
 local function writeU24(u24)
-	if u24 < 0x0 or u24 > 0xFFFFFF then
-		logger:error(string.format("u24 out of bounds: %d", u24))
+	if u24 < 0 or u24 > 16777215 then
+		logger:error(
+			string.format(
+				"u24 out of bounds: %d",
+				u24
+			)
+		)
 	end
 
 	local arr = {}
-	for i = 0x0, 0x2 do
-		arr[i + 1] = bit32.band(bit32.rshift(u24, 0x8 * i), 0xFF)
+
+	for i = 0, 2 do
+		arr[i + 1] =
+			bit32.band(
+				bit32.rshift(
+					u24,
+					8 * i
+				),
+				255
+			)
 	end
 
 	return arr
 end
 
 local function readU24(arr)
-	local val = 0x0
-	for i = 0x0, 0x2 do
-		val = bit32.bor(val, bit32.lshift(arr[i + 1], 0x8 * i))
+	local val = 0
+
+	for i = 0, 2 do
+		val =
+			bit32.bor(
+				val,
+				bit32.lshift(
+					arr[i + 1],
+					8 * i
+				)
+			)
 	end
+
 	return val
 end
 
 local function writeU32(u32)
-	if u32 < 0x0 or u32 > 0xFFFFFFFF then
-		logger:error(string.format("u32 out of bounds: %d", u32))
+	if u32 < 0 or u32 > 4294967295 then
+		logger:error(
+			string.format(
+				"u32 out of bounds: %d",
+				u32
+			)
+		)
 	end
 
 	local arr = {}
-	for i = 0x0, 0x3 do
-		arr[i + 1] = bit32.band(bit32.rshift(u32, 0x8 * i), 0xFF)
+
+	for i = 0, 3 do
+		arr[i + 1] =
+			bit32.band(
+				bit32.rshift(
+					u32,
+					8 * i
+				),
+				255
+			)
 	end
 
 	return arr
 end
 
 local function readU32(arr)
-	local val = 0x0
-	for i = 0x0, 0x3 do
-		val = bit32.bor(val, bit32.lshift(arr[i + 1], 0x8 * i))
+	local val = 0
+
+	for i = 0, 3 do
+		val =
+			bit32.bor(
+				val,
+				bit32.lshift(
+					arr[i + 1],
+					8 * i
+				)
+			)
 	end
+
 	return val
 end
 
@@ -238,25 +366,42 @@ local function bytesToString(arr)
 	local length = arr.n or #arr
 
 	if length < MAX_UNPACK_COUNT then
-		return string.char(unpack(arr))
+		return string.char(table.unpack(arr))
 	end
 
 	local str = ""
-	local overflow = length % MAX_UNPACK_COUNT
 
-	for i = 1, (length - overflow) / MAX_UNPACK_COUNT do
-		str = str .. string.char(unpack(arr, (i - 1) * MAX_UNPACK_COUNT + 1, i * MAX_UNPACK_COUNT))
+	local overflow =
+		length % MAX_UNPACK_COUNT
+
+	for i = 1,
+		(length - overflow) / MAX_UNPACK_COUNT
+	do
+		str = str .. string.char(
+			table.unpack(
+				arr,
+				(i - 1) * MAX_UNPACK_COUNT + 1,
+				i * MAX_UNPACK_COUNT
+			)
+		)
 	end
 
 	if overflow > 0 then
-		str = str .. string.char(unpack(arr, length - overflow + 1, length))
+		str = str .. string.char(
+			table.unpack(
+				arr,
+				length - overflow + 1,
+				length
+			)
+		)
 	end
 
 	return str
 end
 
 local function isNaN(n)
-	return type(n) == "number" and n ~= n
+	return type(n) == "number"
+		and n ~= n
 end
 
 local function isInt(n)
@@ -264,22 +409,32 @@ local function isInt(n)
 end
 
 local function isU32(n)
-	return n >= 0x0 and n <= 0xFFFFFFFF and isInt(n)
+	return n >= 0
+		and n <= 4294967295
+		and isInt(n)
 end
 
 local function toBits(num)
 	local t = {}
+
 	while num > 0 do
-		local rest = math.fmod(num, 2)
+		local rest =
+			math.fmod(num, 2)
+
 		t[#t + 1] = rest
-		num = (num - rest) / 2
+
+		num =
+			(num - rest) / 2
 	end
+
 	return t
 end
 
 local function readonly(obj)
 	local r = newproxy(true)
+
 	getmetatable(r).__index = obj
+
 	return r
 end
 
@@ -306,12 +461,12 @@ return {
 	readU32 = readU32,
 	writeU32 = writeU32,
 
-	-- Bit Operations
-	band = bit32 and bit32.band or nil,
-	bor = bit32 and bit32.bor or nil,
-	bxor = bit32 and bit32.bxor or nil,
-	lshift = bit32 and bit32.lshift or nil,
-	rshift = bit32 and bit32.rshift or nil,
+	-- Bit
+	band = bit32.band,
+	bor = bit32.bor,
+	bxor = bit32.bxor,
+	lshift = bit32.lshift,
+	rshift = bit32.rshift,
 
 	-- Utility
 	isNaN = isNaN,
