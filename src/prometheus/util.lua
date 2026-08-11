@@ -8,6 +8,42 @@ local bit32 = require("prometheus.bit").bit32
 
 local MAX_UNPACK_COUNT = 195
 
+-- Base64 encoding table
+local base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+local function base64_encode(str)
+	local result = ""
+	local i = 1
+	while i <= #str do
+		local b1 = string.byte(str, i)
+		local b2 = string.byte(str, i + 1) or 0
+		local b3 = string.byte(str, i + 2) or 0
+		
+		local enc1 = bit32.rshift(b1, 2)
+		local enc2 = bit32.bor(bit32.lshift(bit32.band(b1, 3), 4), bit32.rshift(b2, 4))
+		local enc3 = bit32.bor(bit32.lshift(bit32.band(b2, 15), 2), bit32.rshift(b3, 6))
+		local enc4 = bit32.band(b3, 63)
+		
+		result = result .. base64_chars:sub(enc1 + 1, enc1 + 1)
+		result = result .. base64_chars:sub(enc2 + 1, enc2 + 1)
+		
+		if i + 1 <= #str then
+			result = result .. base64_chars:sub(enc3 + 1, enc3 + 1)
+		else
+			result = result .. "="
+		end
+		
+		if i + 2 <= #str then
+			result = result .. base64_chars:sub(enc4 + 1, enc4 + 1)
+		else
+			result = result .. "="
+		end
+		
+		i = i + 3
+	end
+	return result
+end
+
 local function lookupify(tb)
 	local tb2 = {}
 	for _, v in ipairs(tb) do
@@ -25,49 +61,8 @@ local function unlookupify(tb)
 end
 
 local function escape(str)
-	return str:gsub(".", function(char)
-		if char:match("[^ %-~\n\t\a\b\v\r\"']") then
-			return string.format("\\%03d", string.byte(char))
-		end
-
-		if char == "\\" then
-			return "\\\\"
-		end
-
-		if char == "\n" then
-			return "\\n"
-		end
-
-		if char == "\r" then
-			return "\\r"
-		end
-
-		if char == "\t" then
-			return "\\t"
-		end
-
-		if char == "\a" then
-			return "\\a"
-		end
-
-		if char == "\b" then
-			return "\\b"
-		end
-
-		if char == "\v" then
-			return "\\v"
-		end
-
-		if char == "\"" then
-			return "\\\""
-		end
-
-		if char == "'" then
-			return "\\'"
-		end
-
-		return char
-	end)
+	-- Encode string to Base64
+	return base64_encode(str)
 end
 
 local function chararray(str)
