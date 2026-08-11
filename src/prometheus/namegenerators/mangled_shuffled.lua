@@ -2,34 +2,54 @@
 --
 -- namegenerators/mangled_shuffled.lua
 --
--- This Script provides a function for generation of mangled names with shuffled character order
-
+-- Generates randomized 50-character mixed-case Lua identifiers.
 
 local util = require("prometheus.util");
-local chararray = util.chararray;
 
-local VarDigits = chararray("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_");
-local VarStartDigits = chararray("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ");
+local alphabet =
+    "abcdefghijklmnopqrstuvwxyz" ..
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+local usedNames = {};
+
+local function randomName()
+    local chars = {};
+
+    for i = 1, 60 do
+        local index = math.random(1, #alphabet);
+        chars[i] = alphabet:sub(index, index);
+    end
+
+    return table.concat(chars);
+end
 
 local function generateName(id, scope)
-	local name = ''
-	local d = id % #VarStartDigits
-	id = (id - d) / #VarStartDigits
-	name = name..VarStartDigits[d+1]
-	while id > 0 do
-		local d = id % #VarDigits
-		id = (id - d) / #VarDigits
-		name = name..VarDigits[d+1]
-	end
-	return name
+    local name;
+
+    repeat
+        name = randomName();
+    until not usedNames[name];
+
+    usedNames[name] = true;
+
+    return name;
 end
 
 local function prepare(ast)
-	util.shuffle(VarDigits);
-	util.shuffle(VarStartDigits);
+    usedNames = {};
+
+    math.randomseed(
+        os.time() +
+        math.floor(os.clock() * 1000000)
+    );
+
+    -- Warm up the random generator.
+    for i = 1, 20 do
+        math.random();
+    end
 end
 
 return {
-	generateName = generateName, 
-	prepare = prepare
+    generateName = generateName,
+    prepare = prepare
 };
