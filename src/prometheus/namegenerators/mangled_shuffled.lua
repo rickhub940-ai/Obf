@@ -7,15 +7,15 @@
 local util = require("prometheus.util");
 
 local alphabet =
-    "abcdefghijklmnopqrstuvwxyz@!?^^#" ..
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ@!?^^#";
+    "abcdefghijklmnopqrstuvwxyz" ..
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 local usedNames = {};
 
 local function randomName()
     local chars = {};
 
-    for i = 1, 5 do
+    for i = 1, 15 do
         local index = math.random(1, #alphabet);
         chars[i] = alphabet:sub(index, index);
     end
@@ -44,7 +44,7 @@ local function prepare(ast)
     );
 
     -- Warm up the random generator.
-    for i = 1, 20 do
+    for i = 1, 30 do
         math.random();
     end
 end
