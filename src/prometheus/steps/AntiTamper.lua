@@ -27,6 +27,7 @@ function AntiTamper:init(settings)
 end
 
 function AntiTamper:apply(ast, pipeline)
+
     if pipeline.PrettyPrint then
         logger:warn(string.format(
             "\"%s\" cannot be used with PrettyPrint, ignoring \"%s\"",
@@ -36,8 +37,18 @@ function AntiTamper:apply(ast, pipeline)
         return ast
     end
 
+    -- =============================================================
+    -- IMPORTANT
+    -- Outer string uses [[ ]]
+    -- Inner Lua strings use [=[ ]=]
+    -- =============================================================
+
     local code = [[
 do
+
+    -- =============================================================
+    -- 009 EXTREME PROTECTION ENGINE
+    -- =============================================================
 
     local _009_tag = "Hey my name is 009.exe"
     local _009_isSafe = true
@@ -49,20 +60,26 @@ do
     end)
 
     -- =============================================================
-    -- GENv FLOOD
+    -- GENV FLOOD
     -- =============================================================
 
     local function _009_flood_genv_scope()
+
         pcall(function()
+
             if getgenv then
+
                 local g = getgenv()
 
                 for i = 1, 250 do
                     g["_009_genv_key_" .. tostring(i)] = _009_tag
                     g[_009_tag .. "_genv_val_" .. tostring(i)] = _009_tag
                 end
+
             end
+
         end)
+
     end
 
     -- =============================================================
@@ -70,14 +87,20 @@ do
     -- =============================================================
 
     local function _009_flood_G_scope()
+
         pcall(function()
+
             if _G then
+
                 for i = 1, 250 do
                     _G["_009_G_key_" .. tostring(i)] = _009_tag
                     _G[_009_tag .. "_G_val_" .. tostring(i)] = _009_tag
                 end
+
             end
+
         end)
+
     end
 
     -- =============================================================
@@ -85,11 +108,13 @@ do
     -- =============================================================
 
     local function _009_flood_ram_scope()
+
         local _009_matrix = {}
 
         for i = 1, 500 do
             _009_matrix[i] = _009_tag
         end
+
     end
 
     _009_flood_genv_scope()
@@ -102,6 +127,7 @@ do
     -- =============================================================
 
     local function _009_verifyGetfenvHook()
+
         pcall(function()
 
             if getfenv ~= nil then
@@ -116,6 +142,7 @@ do
 
                 if not success
                 or type(environmentTable) ~= "table" then
+
                     _009_isSafe = false
                     return
                 end
@@ -124,6 +151,7 @@ do
 
                     if environmentTable.game == nil
                     or environmentTable.workspace == nil then
+
                         _009_isSafe = false
                         return
                     end
@@ -162,9 +190,13 @@ do
                         end
 
                     end
+
                 end
+
             end
+
         end)
+
     end
 
     -- =============================================================
@@ -188,13 +220,16 @@ do
                             rawget(_G, "_009_TEST_WRITE_CHECK")
 
                         _G._009_TEST_WRITE_CHECK = true
-                        _G._009_TEST_WRITE_CHECK = oldWriteCheck
+
+                        _G._009_TEST_WRITE_CHECK =
+                            oldWriteCheck
 
                     end)
 
                     if testSuccess then
                         return
                     end
+
                 end
 
                 _009_isSafe = false
@@ -234,6 +269,7 @@ do
                 end
 
             end
+
         end)
 
     end
@@ -270,7 +306,9 @@ do
                     _009_isSafe = false
                     return
                 end
+
             end
+
         end)
 
     end
@@ -309,8 +347,11 @@ do
                         end
 
                     end
+
                 end
+
             end
+
         end)
 
     end
@@ -341,6 +382,7 @@ do
                 and value == false then
 
                     _009_isSafe = false
+
                 end
 
             end
@@ -370,21 +412,23 @@ do
             local d = debug
             local l = loadstring or load
 
+            -- -----------------------------------------------------
             -- Error line consistency
+            -- -----------------------------------------------------
 
             if type(l) == "function" then
 
-                local f1 = l([[
+                local f1 = l([=[
 return pcall(function()
 return 1/"a"
 end)
-]])
+]=])
 
-                local f2 = l([[
+                local f2 = l([=[
 return pcall(function()
 return 1/"a"
 end)
-]])
+]=])
 
                 if type(f1) == "function"
                 and type(f2) == "function" then
@@ -410,11 +454,16 @@ end)
 
                         result = false
                         return
+
                     end
+
                 end
+
             end
 
+            -- -----------------------------------------------------
             -- Debug API
+            -- -----------------------------------------------------
 
             local dbg_info =
                 d and (d.getinfo or d.info)
@@ -424,14 +473,18 @@ end)
                 return
             end
 
+            -- -----------------------------------------------------
             -- Invalid task.spawn call
+            -- -----------------------------------------------------
 
             if pcall(t.spawn, {}) then
                 result = false
                 return
             end
 
+            -- -----------------------------------------------------
             -- Invalid workspace member
+            -- -----------------------------------------------------
 
             if pcall(function()
                 return ws["subgmaballshaha"]
@@ -439,9 +492,12 @@ end)
 
                 result = false
                 return
+
             end
 
+            -- -----------------------------------------------------
             -- Invalid game member
+            -- -----------------------------------------------------
 
             if pcall(function()
                 return g["__definitely_not_a_real_member__"](g)
@@ -449,9 +505,12 @@ end)
 
                 result = false
                 return
+
             end
 
+            -- -----------------------------------------------------
             -- Invalid service
+            -- -----------------------------------------------------
 
             if g:FindFirstChild(
                 "__DefinitelyNotARealService__"
@@ -459,9 +518,12 @@ end)
 
                 result = false
                 return
+
             end
 
+            -- -----------------------------------------------------
             -- Invalid class
+            -- -----------------------------------------------------
 
             if ws:FindFirstChildOfClass(
                 "__DefinitelyNotARealClass__"
@@ -469,9 +531,12 @@ end)
 
                 result = false
                 return
+
             end
 
+            -- -----------------------------------------------------
             -- newproxy
+            -- -----------------------------------------------------
 
             if type(newproxy) == "function" then
 
@@ -498,15 +563,19 @@ end)
 
                     result = false
                     return
+
                 end
+
             end
+
         end)
 
         return result
+
     end
 
     -- =============================================================
-    -- RUN CHECKS
+    -- RUN SECURITY CHECKS
     -- =============================================================
 
     _009_verifyGetfenvHook()
@@ -560,13 +629,15 @@ end)
 end
 ]]
 
-    local parsed =
-        Parser:new({
-            LuaVersion = Enums.LuaVersion.Lua51
-        }):parse(code)
+    -- =============================================================
+    -- Parse generated Anti-Tamper code
+    -- =============================================================
 
-    local doStat =
-        parsed.body.statements[1]
+    local parsed = Parser:new({
+        LuaVersion = Enums.LuaVersion.Lua51
+    }):parse(code)
+
+    local doStat = parsed.body.statements[1]
 
     doStat.body.scope:setParent(
         ast.body.scope
