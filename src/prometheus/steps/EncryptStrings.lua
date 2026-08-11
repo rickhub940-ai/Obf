@@ -88,22 +88,12 @@ function EncryptStrings:CreateEncrypionService()
 		return table.remove(prev_values)
 	end
 
-	-- สร้างตัวอักษรที่ใช้ในการเข้ารหัส (a-z, A-Z)
-	local function get_encryption_chars()
-		local chars = {}
-		-- เพิ่ม a-z
-		for i = 97, 122 do
-			table.insert(chars, string.char(i))
-		end
-		-- เพิ่ม A-Z
-		for i = 65, 90 do
-			table.insert(chars, string.char(i))
-		end
-		return chars
-	end
+	-- สร้างชุดตัวอักษร a-z, A-Z
+	local encryption_chars = {}
+	for i = 97, 122 do table.insert(encryption_chars, string.char(i)) end
+	for i = 65, 90 do table.insert(encryption_chars, string.char(i)) end
 
-	local encryption_chars = get_encryption_chars()
-
+	-- ฟังก์ชันเข้ารหัส (คืนค่าเป็นตัวอักษร a-z, A-Z และ seed เป็น string)
 	local function encrypt(str)
 		local seed = gen_seed();
 		set_seed(seed)
@@ -113,7 +103,6 @@ function EncryptStrings:CreateEncrypionService()
 		for i = 1, len do
 			local byte = string.byte(str, i);
 			local encoded = (byte - (get_next_pseudo_random_byte() + prevVal)) % 256;
-			-- แปลงเป็นตัวอักษร a-z, A-Z
 			local char_index = (encoded % #encryption_chars) + 1;
 			out[i] = encryption_chars[char_index];
 			prevVal = byte;
@@ -121,23 +110,23 @@ function EncryptStrings:CreateEncrypionService()
 		return table.concat(out), tostring(seed);
 	end
 
-    local function genCode()
-        -- สร้าง charmap สำหรับถอดรหัส (a-z, A-Z)
-        local chars = {}
-        for i = 97, 122 do
-            table.insert(chars, string.char(i))
-        end
-        for i = 65, 90 do
-            table.insert(chars, string.char(i))
-        end
-        
-        local charmap_str = "{"
-        for i, v in ipairs(chars) do
-            charmap_str = charmap_str .. "['" .. v .. "']=" .. (i-1) .. ","
-        end
-        charmap_str = charmap_str .. "}"
-        
-        local code = [[
+	-- สร้าง charmap สำหรับถอดรหัส
+	local function build_charmap()
+		local chars = {}
+		for i = 97, 122 do table.insert(chars, string.char(i)) end
+		for i = 65, 90 do table.insert(chars, string.char(i)) end
+		local charmap_str = "{"
+		for i, v in ipairs(chars) do
+			charmap_str = charmap_str .. "['" .. v .. "']=" .. (i-1) .. ","
+		end
+		charmap_str = charmap_str .. "}"
+		return charmap_str
+	end
+
+	local function genCode()
+		local charmap_str = build_charmap()
+		
+		local code = [[
 do
 	local floor = math.floor
 	local random = math.random;
@@ -145,7 +134,6 @@ do
 	local char = string.char;
 	local state_45 = 0
 	local state_8 = 2
-	local digits = {}
 	local charmap = ]] .. charmap_str .. [[;
 
 	local prev_values = {}
@@ -195,20 +183,20 @@ do
 end]]
 
 		return code;
-    end
+	end
 
-    return {
-        encrypt = encrypt,
-        param_mul_45 = param_mul_45,
-        param_mul_8 = param_mul_8,
-        param_add_45 = param_add_45,
+	return {
+		encrypt = encrypt,
+		param_mul_45 = param_mul_45,
+		param_mul_8 = param_mul_8,
+		param_add_45 = param_add_45,
 		secret_key_8 = secret_key_8,
-        genCode = genCode,
-    }
+		genCode = genCode,
+	}
 end
 
 function EncryptStrings:apply(ast, pipeline)
-    local Encryptor = self:CreateEncrypionService();
+	local Encryptor = self:CreateEncrypionService();
 
 	local code = Encryptor.genCode();
 	local newAst = Parser:new({ LuaVersion = Enums.LuaVersion.Lua51 }):parse(code);
@@ -244,6 +232,7 @@ function EncryptStrings:apply(ast, pipeline)
 			data.scope:addReferenceToHigherScope(scope, stringsVar);
 			data.scope:addReferenceToHigherScope(scope, decryptVar);
 			local encrypted, seed = Encryptor.encrypt(node.value);
+			-- encrypted และ seed เป็น string ทั้งคู่
 			return Ast.IndexExpression(
 				Ast.VariableExpression(scope, stringsVar), 
 				Ast.FunctionCallExpression(
