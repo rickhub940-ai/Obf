@@ -23,14 +23,13 @@ EncryptStrings.SettingsDescriptor = {}
 
 function EncryptStrings:init(settings) end
 
-
 function EncryptStrings:CreateEncrypionService()
 	local usedSeeds = {};
 
-	local secret_key_6 = math.random(0, 63) -- 6-bit  arbitrary integer (0..63)
-	local secret_key_7 = math.random(0, 127) -- 7-bit  arbitrary integer (0..127)
-	local secret_key_44 = math.random(0, 17592186044415) -- 44-bit arbitrary integer (0..17592186044415)
-	local secret_key_8 = math.random(0, 255); -- 8-bit  arbitrary integer (0..255)
+	local secret_key_6 = math.random(0, 63)
+	local secret_key_7 = math.random(0, 127)
+	local secret_key_44 = math.random(0, 17592186044415)
+	local secret_key_8 = math.random(0, 255);
 
 	local floor = math.floor
 
@@ -77,7 +76,7 @@ function EncryptStrings:CreateEncrypionService()
 
 	local function get_next_pseudo_random_byte()
 		if #prev_values == 0 then
-			local rnd = get_random_32() -- value 0..4294967295
+			local rnd = get_random_32()
 			local low_16 = rnd % 65536
 			local high_16 = (rnd - low_16) / 65536
 			local b1 = low_16 % 256
@@ -86,9 +85,24 @@ function EncryptStrings:CreateEncrypionService()
 			local b4 = (high_16 - b3) / 256
 			prev_values = { b1, b2, b3, b4 }
 		end
-		--print(unpack(prev_values))
 		return table.remove(prev_values)
 	end
+
+	-- สร้างตัวอักษรที่ใช้ในการเข้ารหัส (a-z, A-Z)
+	local function get_encryption_chars()
+		local chars = {}
+		-- เพิ่ม a-z
+		for i = 97, 122 do
+			table.insert(chars, string.char(i))
+		end
+		-- เพิ่ม A-Z
+		for i = 65, 90 do
+			table.insert(chars, string.char(i))
+		end
+		return chars
+	end
+
+	local encryption_chars = get_encryption_chars()
 
 	local function encrypt(str)
 		local seed = gen_seed();
@@ -98,13 +112,31 @@ function EncryptStrings:CreateEncrypionService()
 		local prevVal = secret_key_8;
 		for i = 1, len do
 			local byte = string.byte(str, i);
-			out[i] = string.char((byte - (get_next_pseudo_random_byte() + prevVal)) % 256);
+			local encoded = (byte - (get_next_pseudo_random_byte() + prevVal)) % 256;
+			-- แปลงเป็นตัวอักษร a-z, A-Z
+			local char_index = (encoded % #encryption_chars) + 1;
+			out[i] = encryption_chars[char_index];
 			prevVal = byte;
 		end
-		return table.concat(out), seed;
+		return table.concat(out), tostring(seed);
 	end
 
     local function genCode()
+        -- สร้าง charmap สำหรับถอดรหัส (a-z, A-Z)
+        local chars = {}
+        for i = 97, 122 do
+            table.insert(chars, string.char(i))
+        end
+        for i = 65, 90 do
+            table.insert(chars, string.char(i))
+        end
+        
+        local charmap_str = "{"
+        for i, v in ipairs(chars) do
+            charmap_str = charmap_str .. "['" .. v .. "']=" .. (i-1) .. ","
+        end
+        charmap_str = charmap_str .. "}"
+        
         local code = [[
 do
 	local floor = math.floor
@@ -114,19 +146,7 @@ do
 	local state_45 = 0
 	local state_8 = 2
 	local digits = {}
-	local charmap = {};
-	local i = 0;
-
-	local nums = {};
-	for i = 1, 256 do
-		nums[i] = i;
-	end
-
-	repeat
-		local idx = random(1, #nums);
-		local n = remove(nums, idx);
-		charmap[n] = char(n - 1);
-	until #nums == 0;
+	local charmap = ]] .. charmap_str .. [[;
 
 	local prev_values = {}
 	local function get_next_pseudo_random_byte()
@@ -158,15 +178,16 @@ do
 		local realStringsLocal = realStrings;
 		if(realStringsLocal[seed]) then else
 			prev_values = {};
-			local chars = charmap;
-			state_45 = seed % 35184372088832
-			state_8 = seed % 255 + 2
+			state_45 = tonumber(seed) % 35184372088832
+			state_8 = tonumber(seed) % 255 + 2
 			local len = string.len(str);
 			realStringsLocal[seed] = "";
 			local prevVal = ]] .. tostring(secret_key_8) .. [[;
 			for i=1, len do
-				prevVal = (string.byte(str, i) + get_next_pseudo_random_byte() + prevVal) % 256
-				realStringsLocal[seed] = realStringsLocal[seed] .. chars[prevVal + 1];
+				local char = string.sub(str, i, i);
+				local byte = charmap[char] or 0;
+				prevVal = (byte + get_next_pseudo_random_byte() + prevVal) % 256
+				realStringsLocal[seed] = realStringsLocal[seed] .. char(prevVal);
 			end
 		end
 		return seed;
@@ -223,14 +244,18 @@ function EncryptStrings:apply(ast, pipeline)
 			data.scope:addReferenceToHigherScope(scope, stringsVar);
 			data.scope:addReferenceToHigherScope(scope, decryptVar);
 			local encrypted, seed = Encryptor.encrypt(node.value);
-			return Ast.IndexExpression(Ast.VariableExpression(scope, stringsVar), Ast.FunctionCallExpression(Ast.VariableExpression(scope, decryptVar), {
-				Ast.StringExpression(encrypted), Ast.NumberExpression(seed),
-			}));
+			return Ast.IndexExpression(
+				Ast.VariableExpression(scope, stringsVar), 
+				Ast.FunctionCallExpression(
+					Ast.VariableExpression(scope, decryptVar), {
+						Ast.StringExpression(encrypted), 
+						Ast.StringExpression(seed)
+					}
+				)
+			);
 		end
 	end)
 
-
-	-- Insert to Main Ast
 	table.insert(ast.body.statements, 1, doStat);
 	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(scope, util.shuffle{ decryptVar, stringsVar }, {}));
 	return ast
