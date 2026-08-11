@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "functions": {
+    "api/obfuscate.js": {
+      "maxDuration": 60
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/obfuscate",
+      "dest": "/api/obfuscate.js"
+    }
+  ]
+}
