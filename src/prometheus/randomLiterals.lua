@@ -8,7 +8,7 @@ local RandomStrings = require("prometheus.randomStrings")
 local RandomLiterals = {}
 
 -- =========================================================
--- Random Character Generator
+-- Random Junk Characters
 -- A-Z / a-z / # $ @ ? !
 -- =========================================================
 
@@ -30,10 +30,13 @@ end
 
 -- =========================================================
 -- Random String
+-- Long random junk string
 -- =========================================================
 
 function RandomLiterals.String(pipeline)
-    local value = randomLetters(math.random(8, 64))
+    local value = randomLetters(
+        math.random(100, 500)
+    )
 
     return Ast.StringExpression(value)
 end
@@ -48,11 +51,12 @@ end
 
 -- =========================================================
 -- Random Number
+-- Keep numbers small
 -- =========================================================
 
 function RandomLiterals.Number()
     return Ast.NumberExpression(
-        math.random(-8388608, 8388607)
+        math.random(0, 25)
     )
 end
 
