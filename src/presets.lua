@@ -62,12 +62,6 @@ return {
                 };
             },
             {
-                Name = "AntiTamper";
-                Settings = {
-                    UseDebug = false;
-                };
-            },
-            {
                 Name = "Vmify";
                 Settings = {
 
@@ -119,12 +113,6 @@ return {
                 };
             },
             {
-                Name = "AntiTamper";
-                Settings = {
-
-                };
-            },
-            {
                 Name = "Vmify";
                 Settings = {
 
@@ -165,12 +153,6 @@ return {
         Steps = {
             {
                 Name = "EncryptStrings";
-                Settings = {
-
-                };
-            },
-            {
-                Name = "AntiTamper";
                 Settings = {
 
                 };
