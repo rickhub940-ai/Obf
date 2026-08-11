@@ -1,126 +1,83 @@
+-- This Script is Part of the Prometheus Obfuscator by Levno_710
+--
 -- util.lua
--- Part of the Prometheus Obfuscator
--- Fixed version - no bit32 dependency
+-- This file Provides some utility functions
 
 local logger = require("logger")
+local bit32 = require("prometheus.bit").bit32
 
 local MAX_UNPACK_COUNT = 195
 
--- ============================================================
--- Base52 character set
--- ============================================================
-
-local encryption_chars = {}
-
-for i = 97, 122 do
-	table.insert(encryption_chars, string.char(i))
-end
-
-for i = 65, 90 do
-	table.insert(encryption_chars, string.char(i))
-end
-
-local encryption_chars_count = #encryption_chars
-local char_to_index = {}
-
-for i, c in ipairs(encryption_chars) do
-	char_to_index[c] = i - 1
-end
-
--- ============================================================
--- Bit operations
--- ============================================================
-
-local function band(a, b)
-	a = math.floor(a)
-	b = math.floor(b)
-
-	local result = 0
-	local bit = 1
-
-	while a > 0 and b > 0 do
-		if a % 2 == 1 and b % 2 == 1 then
-			result = result + bit
-		end
-
-		a = math.floor(a / 2)
-		b = math.floor(b / 2)
-		bit = bit * 2
-	end
-
-	return result
-end
-
-local function bor(a, b)
-	a = math.floor(a)
-	b = math.floor(b)
-
-	local result = 0
-	local bit = 1
-
-	while a > 0 or b > 0 do
-		if a % 2 == 1 or b % 2 == 1 then
-			result = result + bit
-		end
-
-		a = math.floor(a / 2)
-		b = math.floor(b / 2)
-		bit = bit * 2
-	end
-
-	return result
-end
-
-local function bxor(a, b)
-	a = math.floor(a)
-	b = math.floor(b)
-
-	local result = 0
-	local bit = 1
-
-	while a > 0 or b > 0 do
-		if a % 2 ~= b % 2 then
-			result = result + bit
-		end
-
-		a = math.floor(a / 2)
-		b = math.floor(b / 2)
-		bit = bit * 2
-	end
-
-	return result
-end
-
-local function lshift(a, n)
-	return a * (2 ^ n)
-end
-
-local function rshift(a, n)
-	return math.floor(a / (2 ^ n))
-end
-
--- ============================================================
--- Table operations
--- ============================================================
-
 local function lookupify(tb)
 	local tb2 = {}
-
 	for _, v in ipairs(tb) do
 		tb2[v] = true
 	end
-
 	return tb2
 end
 
 local function unlookupify(tb)
 	local tb2 = {}
-
 	for v, _ in pairs(tb) do
 		table.insert(tb2, v)
 	end
-
 	return tb2
+end
+
+local function escape(str)
+	return str:gsub(".", function(char)
+		if char:match("[^ %-~\n\t\a\b\v\r\"']") then
+			return string.format("\\%03d", string.byte(char))
+		end
+
+		if char == "\\" then
+			return "\\\\"
+		end
+
+		if char == "\n" then
+			return "\\n"
+		end
+
+		if char == "\r" then
+			return "\\r"
+		end
+
+		if char == "\t" then
+			return "\\t"
+		end
+
+		if char == "\a" then
+			return "\\a"
+		end
+
+		if char == "\b" then
+			return "\\b"
+		end
+
+		if char == "\v" then
+			return "\\v"
+		end
+
+		if char == "\"" then
+			return "\\\""
+		end
+
+		if char == "'" then
+			return "\\'"
+		end
+
+		return char
+	end)
+end
+
+local function chararray(str)
+	local tb = {}
+
+	for i = 1, #str do
+		table.insert(tb, str:sub(i, i))
+	end
+
+	return tb
 end
 
 local function keys(tb)
@@ -134,79 +91,6 @@ local function keys(tb)
 
 	return keyset
 end
-
--- ============================================================
--- String operations
--- ============================================================
-
--- 1 byte -> 2 Base52 characters
--- reversible
-
-local function escape(str)
-	local result = {}
-
-	for i = 1, #str do
-		local byte = string.byte(str, i)
-
-		local high = math.floor(byte / encryption_chars_count)
-		local low = byte % encryption_chars_count
-
-		result[#result + 1] =
-			encryption_chars[high + 1]
-
-		result[#result + 1] =
-			encryption_chars[low + 1]
-	end
-
-	return table.concat(result)
-end
-
-local function unescape(str)
-	local result = {}
-
-	if #str % 2 ~= 0 then
-		error("Invalid escaped string length")
-	end
-
-	for i = 1, #str, 2 do
-		local c1 = string.sub(str, i, i)
-		local c2 = string.sub(str, i + 1, i + 1)
-
-		local high = char_to_index[c1]
-		local low = char_to_index[c2]
-
-		if high == nil or low == nil then
-			error("Invalid escaped character")
-		end
-
-		local byte =
-			high * encryption_chars_count + low
-
-		if byte > 255 then
-			error("Invalid escaped byte")
-		end
-
-		result[#result + 1] =
-			string.char(byte)
-	end
-
-	return table.concat(result)
-end
-
-local function chararray(str)
-	local tb = {}
-
-	for i = 1, #str do
-		tb[#tb + 1] =
-			str:sub(i, i)
-	end
-
-	return tb
-end
-
--- ============================================================
--- UTF-8
--- ============================================================
 
 local utf8char
 
@@ -224,10 +108,7 @@ do
 		cp = (cp - suffix) / 64
 
 		if cp < 32 then
-			return string_char(
-				192 + cp,
-				c4
-			)
+			return string_char(192 + cp, c4)
 		end
 
 		suffix = cp % 64
@@ -236,37 +117,25 @@ do
 		cp = (cp - suffix) / 64
 
 		if cp < 16 then
-			return string_char(
-				224 + cp,
-				c3,
-				c4
-			)
+			return string_char(224 + cp, c3, c4)
 		end
 
 		suffix = cp % 64
-		local c2 = 128 + suffix
-
 		cp = (cp - suffix) / 64
 
 		return string_char(
 			240 + cp,
-			c2,
+			128 + suffix,
 			c3,
 			c4
 		)
 	end
 end
 
--- ============================================================
--- Shuffle
--- ============================================================
-
 local function shuffle(tb)
 	for i = #tb, 2, -1 do
 		local j = math.random(i)
-
-		tb[i], tb[j] =
-			tb[j], tb[i]
+		tb[i], tb[j] = tb[j], tb[i]
 	end
 
 	return tb
@@ -277,23 +146,16 @@ local function shuffle_string(str)
 	local t = {}
 
 	for i = 1, len do
-		t[i] =
-			string.sub(str, i, i)
+		t[i] = str:sub(i, i)
 	end
 
-	for i = len, 2, -1 do
-		local j = math.random(i)
-
-		t[i], t[j] =
-			t[j], t[i]
+	for i = 1, len do
+		local j = math.random(i, len)
+		t[i], t[j] = t[j], t[i]
 	end
 
 	return table.concat(t)
 end
-
--- ============================================================
--- Double
--- ============================================================
 
 local function readDouble(bytes)
 	local sign = 1
@@ -319,11 +181,13 @@ local function readDouble(bytes)
 	end
 
 	mantissa =
-		(mantissa / (2^52) + 1)
+		(math.ldexp(mantissa, -52) + 1)
 		* sign
 
-	return mantissa *
-		(2 ^ (exponent - 1023))
+	return math.ldexp(
+		mantissa,
+		exponent - 1023
+	)
 end
 
 local function writeDouble(num)
@@ -338,31 +202,23 @@ local function writeDouble(num)
 
 	local anum = math.abs(num)
 
-	local exponent =
-		math.floor(
-			math.log(anum, 2)
-		) + 1
-
-	local mantissa =
-		anum / (2 ^ exponent)
+	local mantissa, exponent =
+		math.frexp(anum)
 
 	exponent = exponent - 1
-
-	mantissa =
-		mantissa * 2 - 1
+	mantissa = mantissa * 2 - 1
 
 	local sign =
-		num < 0 and 128 or 0
+		num ~= anum and 128 or 0
 
 	exponent =
 		exponent + 1023
 
 	bytes[1] =
-		sign +
-		math.floor(exponent / 16)
+		sign + math.floor(exponent / 2^4)
 
 	mantissa =
-		mantissa * 16
+		mantissa * 2^4
 
 	local currentmantissa =
 		math.floor(mantissa)
@@ -371,12 +227,12 @@ local function writeDouble(num)
 		mantissa - currentmantissa
 
 	bytes[2] =
-		(exponent % 16) * 16
+		(exponent % 2^4) * 2^4
 		+ currentmantissa
 
 	for i = 3, 8 do
 		mantissa =
-			mantissa * 256
+			mantissa * 2^8
 
 		currentmantissa =
 			math.floor(mantissa)
@@ -391,10 +247,6 @@ local function writeDouble(num)
 	return bytes
 end
 
--- ============================================================
--- U16
--- ============================================================
-
 local function writeU16(u16)
 	if u16 < 0 or u16 > 65535 then
 		logger:error(
@@ -406,10 +258,10 @@ local function writeU16(u16)
 	end
 
 	local lower =
-		band(u16, 255)
+		bit32.band(u16, 255)
 
 	local upper =
-		rshift(u16, 8)
+		bit32.rshift(u16, 8)
 
 	return {
 		lower,
@@ -418,15 +270,11 @@ local function writeU16(u16)
 end
 
 local function readU16(arr)
-	return bor(
+	return bit32.bor(
 		arr[1],
-		lshift(arr[2], 8)
+		bit32.lshift(arr[2], 8)
 	)
 end
-
--- ============================================================
--- U24
--- ============================================================
 
 local function writeU24(u24)
 	if u24 < 0 or u24 > 16777215 then
@@ -442,8 +290,11 @@ local function writeU24(u24)
 
 	for i = 0, 2 do
 		arr[i + 1] =
-			band(
-				rshift(u24, 8 * i),
+			bit32.band(
+				bit32.rshift(
+					u24,
+					8 * i
+				),
 				255
 			)
 	end
@@ -456,9 +307,9 @@ local function readU24(arr)
 
 	for i = 0, 2 do
 		val =
-			bor(
+			bit32.bor(
 				val,
-				lshift(
+				bit32.lshift(
 					arr[i + 1],
 					8 * i
 				)
@@ -467,10 +318,6 @@ local function readU24(arr)
 
 	return val
 end
-
--- ============================================================
--- U32
--- ============================================================
 
 local function writeU32(u32)
 	if u32 < 0 or u32 > 4294967295 then
@@ -486,8 +333,8 @@ local function writeU32(u32)
 
 	for i = 0, 3 do
 		arr[i + 1] =
-			band(
-				rshift(
+			bit32.band(
+				bit32.rshift(
 					u32,
 					8 * i
 				),
@@ -503,9 +350,9 @@ local function readU32(arr)
 
 	for i = 0, 3 do
 		val =
-			bor(
+			bit32.bor(
 				val,
-				lshift(
+				bit32.lshift(
 					arr[i + 1],
 					8 * i
 				)
@@ -515,76 +362,42 @@ local function readU32(arr)
 	return val
 end
 
--- ============================================================
--- Bytes -> String
--- ============================================================
-
 local function bytesToString(arr)
-	local length =
-		arr.n or #arr
-
-	if length == 0 then
-		return ""
-	end
+	local length = arr.n or #arr
 
 	if length < MAX_UNPACK_COUNT then
-		return string.char(
+		return string.char(table.unpack(arr))
+	end
+
+	local str = ""
+
+	local overflow =
+		length % MAX_UNPACK_COUNT
+
+	for i = 1,
+		(length - overflow) / MAX_UNPACK_COUNT
+	do
+		str = str .. string.char(
 			table.unpack(
 				arr,
-				1,
+				(i - 1) * MAX_UNPACK_COUNT + 1,
+				i * MAX_UNPACK_COUNT
+			)
+		)
+	end
+
+	if overflow > 0 then
+		str = str .. string.char(
+			table.unpack(
+				arr,
+				length - overflow + 1,
 				length
 			)
 		)
 	end
 
-	local parts = {}
-
-	local full_chunks =
-		math.floor(
-			length / MAX_UNPACK_COUNT
-		)
-
-	local overflow =
-		length % MAX_UNPACK_COUNT
-
-	for i = 1, full_chunks do
-		local start_index =
-			(i - 1) *
-			MAX_UNPACK_COUNT + 1
-
-		local end_index =
-			i * MAX_UNPACK_COUNT
-
-		parts[#parts + 1] =
-			string.char(
-				table.unpack(
-					arr,
-					start_index,
-					end_index
-				)
-			)
-	end
-
-	if overflow > 0 then
-		local start_index =
-			length - overflow + 1
-
-		parts[#parts + 1] =
-			string.char(
-				table.unpack(
-					arr,
-					start_index,
-					length
-				)
-			)
-	end
-
-	return table.concat(parts)
+	return str
 end
-
--- ============================================================
--- Number helpers
--- ============================================================
 
 local function isNaN(n)
 	return type(n) == "number"
@@ -592,71 +405,40 @@ local function isNaN(n)
 end
 
 local function isInt(n)
-	return type(n) == "number"
-		and math.floor(n) == n
+	return math.floor(n) == n
 end
 
 local function isU32(n)
-	return isInt(n)
-		and n >= 0
+	return n >= 0
 		and n <= 4294967295
+		and isInt(n)
 end
 
 local function toBits(num)
 	local t = {}
 
-	num = math.floor(num)
-
 	while num > 0 do
 		local rest =
-			num % 2
+			math.fmod(num, 2)
 
-		t[#t + 1] =
-			rest
+		t[#t + 1] = rest
 
 		num =
-			math.floor(
-				num / 2
-			)
+			(num - rest) / 2
 	end
 
 	return t
 end
 
--- ============================================================
--- Readonly
--- ============================================================
-
 local function readonly(obj)
-	if not newproxy then
-		error(
-			"readonly() requires Lua 5.1 newproxy support"
-		)
-	end
+	local r = newproxy(true)
 
-	local r =
-		newproxy(true)
-
-	local mt =
-		getmetatable(r)
-
-	mt.__index = obj
-
-	mt.__newindex = function()
-		error(
-			"attempt to modify readonly object"
-		)
-	end
+	getmetatable(r).__index = obj
 
 	return r
 end
 
--- ============================================================
--- Export
--- ============================================================
-
 return {
-
 	-- Table
 	lookupify = lookupify,
 	unlookupify = unlookupify,
@@ -665,7 +447,6 @@ return {
 
 	-- String
 	escape = escape,
-	unescape = unescape,
 	chararray = chararray,
 	shuffle_string = shuffle_string,
 	utf8char = utf8char,
@@ -673,22 +454,19 @@ return {
 	-- Number
 	readDouble = readDouble,
 	writeDouble = writeDouble,
-
 	readU16 = readU16,
 	writeU16 = writeU16,
-
 	readU24 = readU24,
 	writeU24 = writeU24,
-
 	readU32 = readU32,
 	writeU32 = writeU32,
 
 	-- Bit
-	band = band,
-	bor = bor,
-	bxor = bxor,
-	lshift = lshift,
-	rshift = rshift,
+	band = bit32.band,
+	bor = bit32.bor,
+	bxor = bit32.bxor,
+	lshift = bit32.lshift,
+	rshift = bit32.rshift,
 
 	-- Utility
 	isNaN = isNaN,
