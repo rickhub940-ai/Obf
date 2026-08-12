@@ -2,7 +2,7 @@
 --
 -- EncryptStrings.lua
 --
--- Encrypt Strings using a custom 24-character alphabet.
+-- Encrypt Strings using a custom 16-character alphabet.
 -- 1 byte -> 2 alphabet characters.
 -- Fully reversible.
 
@@ -30,31 +30,28 @@ function EncryptStrings:CreateEncrypionService()
 	local usedSeeds = {}
 
 	-- =========================================================
-	-- CUSTOM 24 CHARACTER ALPHABET
-	-- สามารถเปลี่ยนชุดนี้ได้ แต่ต้องมี "24 ตัวพอดี"
+	-- CUSTOM 16 CHARACTER ALPHABET
+	-- 16x16 = 256 ครอบคลุมทุก byte (0-255)
 	-- =========================================================
 
-	local ALPHABET = "aBcDeFgHiJkLmNoPqRsTuVwX"
+	local ALPHABET = "ABCDEFGHIJKLMNOP"  -- 16 ตัวพอดี
 
 	local ALPHABET_SIZE = #ALPHABET
 
 	assert(
-		ALPHABET_SIZE == 24,
-		"EncryptStrings alphabet must contain exactly 24 characters"
+		ALPHABET_SIZE == 16,
+		"EncryptStrings alphabet must contain exactly 16 characters"
 	)
 
 	-- ตรวจว่าตัวอักษรไม่ซ้ำกัน
 	do
 		local check = {}
-
 		for i = 1, ALPHABET_SIZE do
 			local c = ALPHABET:sub(i, i)
-
 			assert(
 				not check[c],
 				"EncryptStrings alphabet contains duplicate characters: " .. c
 			)
-
 			check[c] = true
 		end
 	end
@@ -75,151 +72,73 @@ function EncryptStrings:CreateEncrypionService()
 	-- =========================================================
 
 	local function primitive_root_257(idx)
-
 		local g, m, d = 1, 128, 2 * idx + 1
-
 		repeat
-
 			g, m, d =
 				g * g * (d >= m and 3 or 1) % 257,
 				m / 2,
 				d % m
-
 		until m < 1
-
 		return g
 	end
 
-	local param_mul_8 =
-		primitive_root_257(secret_key_7)
-
-	local param_mul_45 =
-		secret_key_6 * 4 + 1
-
-	local param_add_45 =
-		secret_key_44 * 2 + 1
+	local param_mul_8 = primitive_root_257(secret_key_7)
+	local param_mul_45 = secret_key_6 * 4 + 1
+	local param_add_45 = secret_key_44 * 2 + 1
 
 	local state_45 = 0
 	local state_8 = 2
-
 	local prev_values = {}
 
 	local function set_seed(seed)
-
-		state_45 =
-			seed % 35184372088832
-
-		state_8 =
-			seed % 255 + 2
-
+		state_45 = seed % 35184372088832
+		state_8 = seed % 255 + 2
 		prev_values = {}
 	end
 
 	local function gen_seed()
-
 		local seed
-
 		repeat
-
-			seed =
-				math.random(
-					0,
-					35184372088832
-				)
-
+			seed = math.random(0, 35184372088832)
 		until not usedSeeds[seed]
-
 		usedSeeds[seed] = true
-
 		return seed
 	end
 
 	local function get_random_32()
-
-		state_45 =
-			(
-				state_45 * param_mul_45
-				+ param_add_45
-			)
-			% 35184372088832
-
+		state_45 = (state_45 * param_mul_45 + param_add_45) % 35184372088832
 		repeat
-
-			state_8 =
-				state_8 * param_mul_8 % 257
-
+			state_8 = state_8 * param_mul_8 % 257
 		until state_8 ~= 1
 
-		local r =
-			state_8 % 32
-
-		local n =
-			floor(
-				state_45 /
-				2 ^ (13 - (state_8 - r) / 32)
-			)
-			% 2 ^ 32
-			/ 2 ^ r
-
-		return
-			floor(n % 1 * 2 ^ 32)
-			+ floor(n)
+		local r = state_8 % 32
+		local n = floor(state_45 / 2 ^ (13 - (state_8 - r) / 32)) % 2 ^ 32 / 2 ^ r
+		return floor(n % 1 * 2 ^ 32) + floor(n)
 	end
 
 	local function get_next_pseudo_random_byte()
-
 		if #prev_values == 0 then
-
-			local rnd =
-				get_random_32()
-
-			local low_16 =
-				rnd % 65536
-
-			local high_16 =
-				(rnd - low_16) / 65536
-
-			local b1 =
-				low_16 % 256
-
-			local b2 =
-				(low_16 - b1) / 256
-
-			local b3 =
-				high_16 % 256
-
-			local b4 =
-				(high_16 - b3) / 256
-
-			prev_values = {
-				b1,
-				b2,
-				b3,
-				b4
-			}
+			local rnd = get_random_32()
+			local low_16 = rnd % 65536
+			local high_16 = (rnd - low_16) / 65536
+			local b1 = low_16 % 256
+			local b2 = (low_16 - b1) / 256
+			local b3 = high_16 % 256
+			local b4 = (high_16 - b3) / 256
+			prev_values = {b1, b2, b3, b4}
 		end
-
 		return table.remove(prev_values)
 	end
 
 	-- =========================================================
 	-- BYTE -> 2 CHARACTERS
-	--
-	-- 24 x 24 = 576 combinations
-	-- จึงครอบคลุม byte 0..255 ได้ทั้งหมด
+	-- 16x16 = 256 ครอบคลุม byte 0..255 ทั้งหมด
 	-- =========================================================
 
 	local function encode_byte(byte)
-
-		local high =
-			math.floor(byte / ALPHABET_SIZE)
-
-		local low =
-			byte % ALPHABET_SIZE
-
-		return
-			ALPHABET:sub(high + 1, high + 1)
-			.. ALPHABET:sub(low + 1, low + 1)
+		local high = math.floor(byte / ALPHABET_SIZE)
+		local low = byte % ALPHABET_SIZE
+		return ALPHABET:sub(high + 1, high + 1) .. ALPHABET:sub(low + 1, low + 1)
 	end
 
 	-- =========================================================
@@ -227,45 +146,22 @@ function EncryptStrings:CreateEncrypionService()
 	-- =========================================================
 
 	local function encrypt(str)
-
-		local seed =
-			gen_seed()
-
+		local seed = gen_seed()
 		set_seed(seed)
 
-		local len =
-			string.len(str)
-
+		local len = string.len(str)
 		local out = {}
-
-		local prevVal =
-			secret_key_8
+		local prevVal = secret_key_8
 
 		for i = 1, len do
-
-			local byte =
-				string.byte(str, i)
-
-			local randomByte =
-				get_next_pseudo_random_byte()
-
-			local encodedByte =
-				(
-					byte
-					- (randomByte + prevVal)
-				)
-				% 256
-
-			out[#out + 1] =
-				encode_byte(encodedByte)
-
-			prevVal =
-				byte
+			local byte = string.byte(str, i)
+			local randomByte = get_next_pseudo_random_byte()
+			local encodedByte = (byte - (randomByte + prevVal)) % 256
+			out[#out + 1] = encode_byte(encodedByte)
+			prevVal = byte
 		end
 
-		return
-			table.concat(out),
-			seed
+		return table.concat(out), seed
 	end
 
 	-- =========================================================
@@ -288,7 +184,7 @@ local ALPHABET = ]] ..
 			string.format("%q", ALPHABET) ..
 			[[
 
-local ALPHABET_SIZE = 24
+local ALPHABET_SIZE = 16
 
 local state_45 = 0
 local state_8 = 2
@@ -367,11 +263,7 @@ end
 local charmap = {}
 
 for i = 1, ALPHABET_SIZE do
-
-	charmap[
-		sub(ALPHABET, i, i)
-	] = i - 1
-
+	charmap[sub(ALPHABET, i, i)] = i - 1
 end
 
 local realStrings = {}
