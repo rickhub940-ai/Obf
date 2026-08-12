@@ -1,15 +1,13 @@
--- EncryptStrings.lua
+-- EncryptStrings.lua (แบบ Base64)
 local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
 local Parser = require("prometheus.parser")
 local Enums = require("prometheus.enums")
 local visitast = require("prometheus.visitast")
 local util = require("prometheus.util")
-
 local AstKind = Ast.AstKind
 
 local EncryptStrings = Step:extend()
-
 EncryptStrings.Description = "This Step will encrypt strings within your Program."
 EncryptStrings.Name = "Encrypt Strings"
 EncryptStrings.SettingsDescriptor = {}
@@ -20,6 +18,7 @@ function EncryptStrings:CreateEncrypionService()
     local secret_key_8 = math.random(0, 255)
     local floor = math.floor
 
+    -- ใช้ Base64 จาก util
     local function encrypt(str)
         local seed = math.random(0, 999999)
         local bytes = {}
@@ -93,7 +92,6 @@ do
 
     local realStrings = {}
 
-    -- IMPORTANT: ไม่มี local ข้างหน้า (เป็น global)
     STRINGS = setmetatable(
         {},
         {
@@ -107,7 +105,6 @@ do
         }
     )
 
-    -- IMPORTANT: ไม่มี local ข้างหน้า (เป็น global function)
     function DECRYPT(str, seed)
         if str == nil or seed == nil then
             return ""
@@ -141,7 +138,7 @@ do
         local prevVal = ]] .. tostring(secret_key_8) .. [[
 
         for i = 1, #decoded do
-            s = (s * 1103515245 + 12345) % 2^32
+            s = (s * 1103515245 + 12345) % 4294967296
             local randomByte = floor(s / 65536) % 256
             local originalByte = (byte(decoded, i) + randomByte + prevVal) % 256
             result[i] = char(originalByte)
@@ -158,7 +155,10 @@ end
 ]]
     end
 
-    return { encrypt = encrypt, genCode = genCode }
+    return {
+        encrypt = encrypt,
+        genCode = genCode
+    }
 end
 
 function EncryptStrings:apply(ast, pipeline)
