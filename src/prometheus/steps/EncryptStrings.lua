@@ -20,7 +20,6 @@ function EncryptStrings:CreateEncrypionService()
     local secret_key_8 = math.random(0, 255)
     local floor = math.floor
 
-    -- ใช้ Base64 จาก util
     local function encrypt(str)
         local seed = math.random(0, 999999)
         local bytes = {}
@@ -49,7 +48,6 @@ do
     local sub = string.sub
     local concat = table.concat
     local floor = math.floor
-    local bxor = bit32.bxor
 
     -- Base64 alphabet
     local b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
@@ -95,6 +93,7 @@ do
 
     local realStrings = {}
 
+    -- IMPORTANT: ไม่มี local ข้างหน้า (เป็น global)
     STRINGS = setmetatable(
         {},
         {
@@ -108,6 +107,7 @@ do
         }
     )
 
+    -- IMPORTANT: ไม่มี local ข้างหน้า (เป็น global function)
     function DECRYPT(str, seed)
         if str == nil or seed == nil then
             return ""
@@ -117,19 +117,23 @@ do
             return ""
         end
 
+        if type(str) ~= "string" or #str == 0 then
+            return ""
+        end
+
         local realStringsLocal = realStrings
 
         if realStringsLocal[seed] then
             return seed
         end
 
-        if #str == 0 then
+        -- ถอด Base64
+        local decoded = base64_decode(str)
+        
+        if decoded == "" then
             realStringsLocal[seed] = ""
             return seed
         end
-
-        -- ถอด Base64
-        local decoded = base64_decode(str)
 
         -- XOR ถอดรหัส
         local result = {}
