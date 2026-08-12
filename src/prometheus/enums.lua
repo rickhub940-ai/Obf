@@ -3,12 +3,19 @@
 -- enums.lua
 -- This file Provides some enums used by the Obfuscator
 
-local Enums = {};
+local Enums = {}
 
-local chararray = require("prometheus.util").chararray;
+-- สร้าง chararray ในตัว (ไม่ต้องพึ่ง util)
+local function chararray(str)
+	local tb = {}
+	for i = 1, #str do
+		table.insert(tb, str:sub(i, i))
+	end
+	return tb
+end
 
 Enums.LuaVersion = {
-	LuaU  = "LuaU" ,
+	LuaU  = "LuaU",
 	Lua51 = "Lua51",
 }
 
@@ -18,7 +25,7 @@ Enums.Conventions = {
 			"and",    "break",  "do",    "else",     "elseif", 
 			"end",    "false",  "for",   "function", "if",   
 			"in",     "local",  "nil",   "not",      "or",
-			"repeat", "return", "then",  "true",     "until",    "while"
+			"repeat", "return", "then",  "true",     "until", "while"
 		},
 		
 		SymbolChars = chararray("+-*/%^#=~<>(){}[];:,."),
@@ -40,16 +47,16 @@ Enums.Conventions = {
 		DecimalSeperators   = false,
 		
 		EscapeSequences     = {
-			["a"] = "\a";
-			["b"] = "\b";
-			["f"] = "\f";
-			["n"] = "\n";
-			["r"] = "\r";
-			["t"] = "\t";
-			["v"] = "\v";
-			["\\"] = "\\";
-			["\""] = "\"";
-			["\'"] = "\'";
+			["a"] = "\a",
+			["b"] = "\b",
+			["f"] = "\f",
+			["n"] = "\n",
+			["r"] = "\r",
+			["t"] = "\t",
+			["v"] = "\v",
+			["\\"] = "\\",
+			["\""] = "\"",
+			["\'"] = "\'",
 		},
 		NumericalEscapes = true,
 		EscapeZIgnoreNextWhitespace = true,
@@ -61,7 +68,7 @@ Enums.Conventions = {
 			"and",    "break",  "do",    "else",     "elseif", "continue",
 			"end",    "false",  "for",   "function", "if",   
 			"in",     "local",  "nil",   "not",      "or",
-			"repeat", "return", "then",  "true",     "until",    "while"
+			"repeat", "return", "then",  "true",     "until", "while"
 		},
 		
 		SymbolChars = chararray("+-*/%^#=~<>(){}[];:,."),
@@ -85,16 +92,16 @@ Enums.Conventions = {
 		DecimalSeperators   = {"_"},
 		
 		EscapeSequences     = {
-			["a"] = "\a";
-			["b"] = "\b";
-			["f"] = "\f";
-			["n"] = "\n";
-			["r"] = "\r";
-			["t"] = "\t";
-			["v"] = "\v";
-			["\\"] = "\\";
-			["\""] = "\"";
-			["\'"] = "\'";
+			["a"] = "\a",
+			["b"] = "\b",
+			["f"] = "\f",
+			["n"] = "\n",
+			["r"] = "\r",
+			["t"] = "\t",
+			["v"] = "\v",
+			["\\"] = "\\",
+			["\""] = "\"",
+			["\'"] = "\'",
 		},
 		NumericalEscapes = true,
 		EscapeZIgnoreNextWhitespace = true,
@@ -103,4 +110,4 @@ Enums.Conventions = {
 	},
 }
 
-return Enums;
+return Enums
