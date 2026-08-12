@@ -1,9 +1,10 @@
+-- This Script is Part of the Prometheus Obfuscator by Levno_710
+--
 -- util.lua
-local logger = require("logger");
+-- This file Provides some utility functions
 
--- แก้ตรงนี้
-local bit = require("prometheus.bit")
-local bit32 = bit.bit32
+local logger = require("logger");
+local bit32  = require("prometheus.bit").bit32;
 
 local MAX_UNPACK_COUNT = 195;
 
@@ -25,7 +26,7 @@ end
 
 local function escape(str)
 	return str:gsub(".", function(char)
-		if char:match("[^ %-~\n\t\a\b\v\r\"\']") then
+		if char:match("[^ %-~\n\t\a\b\v\r\"\']") then -- Check if non Printable ASCII Character
 			return string.format("\\%03d", string.byte(char))
 		end
 		if(char == "\\") then
@@ -252,8 +253,9 @@ local function isU32(n)
 end
 
 local function toBits(num)
-    local t={}
-    local rest;
+    -- returns a table of bits, least significant first.
+    local t={} -- will contain the bits
+	local rest;
     while num>0 do
         rest=math.fmod(num,2)
         t[#t+1]=rest
@@ -267,6 +269,39 @@ local function readonly(obj)
 	local r = newproxy(true);
 	getmetatable(r).__index = obj;
 	return r;
+end
+
+-- Standard Base64 (RFC 4648) alphabet + encode/decode.
+-- Used by EncryptStrings to pool all encrypted strings into a single
+-- base64-encoded table instead of emitting a raw numeric seed per string.
+local B64C = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+
+local function b64encode(data)
+	return ((data:gsub('.', function(x)
+		local r, b = '', x:byte()
+		for i = 8, 1, -1 do r = r .. (b % 2^i - b % 2^(i-1) > 0 and '1' or '0') end
+		return r
+	end) .. '0000'):gsub('%d%d%d?%d?%d?%d?', function(x)
+		if #x < 6 then return '' end
+		local c = 0
+		for i = 1, 6 do c = c + (x:sub(i,i) == '1' and 2^(6-i) or 0) end
+		return B64C:sub(c + 1, c + 1)
+	end) .. ({ '', '==', '=' })[#data % 3 + 1])
+end
+
+local function b64decode(data)
+	data = string.gsub(data, '[^'..B64C..'=]', '')
+	return (data:gsub('.', function(x)
+		if x == '=' then return '' end
+		local r, f = '', (B64C:find(x, 1, true) - 1)
+		for i = 6, 1, -1 do r = r .. (f % 2^i - f % 2^(i-1) > 0 and '1' or '0') end
+		return r
+	end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+		if #x ~= 8 then return '' end
+		local c = 0
+		for i = 1, 8 do c = c + (x:sub(i,i) == '1' and 2^(8-i) or 0) end
+		return string.char(c)
+	end))
 end
 
 return {
@@ -292,4 +327,7 @@ return {
 	toBits = toBits,
 	bytesToString = bytesToString,
 	readonly = readonly,
+	B64C = B64C,
+	b64encode = b64encode,
+	b64decode = b64decode,
 }
