@@ -1,10 +1,4 @@
--- This Script is Part of the Prometheus Obfuscator by Levno_710
---
 -- EncryptStrings.lua
---
--- Encrypt Strings using 24-character alphabet.
--- 1 byte -> 2 alphabet characters.
-
 local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
 local Parser = require("prometheus.parser")
@@ -18,231 +12,215 @@ local EncryptStrings = Step:extend()
 
 EncryptStrings.Description = "This Step will encrypt strings within your Program."
 EncryptStrings.Name = "Encrypt Strings"
-
 EncryptStrings.SettingsDescriptor = {}
 
-function EncryptStrings:init(settings)
-end
+function EncryptStrings:init(settings) end
 
 function EncryptStrings:CreateEncrypionService()
+    local secret_key_8 = math.random(0, 255)
+    local floor = math.floor
 
-	local usedSeeds = {}
+    -- ใช้ Base64 จาก util
+    local function encrypt(str)
+        local seed = math.random(0, 999999)
+        local bytes = {}
+        local prevVal = secret_key_8
 
-	-- 24 ตัวอักษร (24x24 = 576 ครอบคลุม 0-255)
-	local ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-	local ALPHABET_SIZE = 24
+        for i = 1, #str do
+            local byte = string.byte(str, i)
+            seed = (seed * 1103515245 + 12345) % 2^32
+            local randomByte = floor(seed / 65536) % 256
+            local encodedByte = (byte - (randomByte + prevVal)) % 256
+            bytes[i] = string.char(encodedByte)
+            prevVal = byte
+        end
 
-	assert(
-		ALPHABET_SIZE == 24,
-		"Alphabet must contain exactly 24 characters"
-	)
+        local encrypted_str = table.concat(bytes)
+        local b64 = util.base64_encode(encrypted_str)
+        return b64, seed
+    end
 
-	do
-		local check = {}
-		for i = 1, ALPHABET_SIZE do
-			local c = ALPHABET:sub(i, i)
-			assert(not check[c], "Duplicate character: " .. c)
-			check[c] = true
-		end
-	end
-
-	local floor = math.floor
-	local secret_key_8 = math.random(0, 255)
-
-	local function encrypt(str)
-		local seed = math.random(0, 999999)
-		local out = {}
-		local prevVal = secret_key_8
-		
-		for i = 1, #str do
-			local byte = string.byte(str, i)
-			
-			seed = (seed * 1103515245 + 12345) % 2^32
-			local randomByte = floor(seed / 65536) % 256
-			
-			local encodedByte = (byte - (randomByte + prevVal)) % 256
-			
-			local high = floor(encodedByte / ALPHABET_SIZE)
-			local low = encodedByte % ALPHABET_SIZE
-			
-			out[#out + 1] = ALPHABET:sub(high + 1, high + 1)
-			out[#out + 1] = ALPHABET:sub(low + 1, low + 1)
-			
-			prevVal = byte
-		end
-		
-		return table.concat(out), seed
-	end
-
-	local function genCode()
-		local code = [[
+    local function genCode()
+        return [[
 
 do
-	local byte = string.byte
-	local char = string.char
-	local sub = string.sub
-	local concat = table.concat
-	local floor = math.floor
+    local byte = string.byte
+    local char = string.char
+    local sub = string.sub
+    local concat = table.concat
+    local floor = math.floor
+    local bxor = bit32.bxor
 
-	local ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-	local ALPHABET_SIZE = 24
+    -- Base64 alphabet
+    local b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
-	local charmap = {}
-	for i = 1, ALPHABET_SIZE do
-		charmap[sub(ALPHABET, i, i)] = i - 1
-	end
+    -- Base64 decode
+    local function base64_decode(str)
+        local chars = {}
+        for i = 1, #str do
+            local c = sub(str, i, i)
+            if c ~= "=" then
+                local pos = b64chars:find(c) - 1
+                if pos >= 0 then
+                    chars[#chars + 1] = pos
+                end
+            end
+        end
 
-	local realStrings = {}
+        local result = {}
+        local i = 1
+        while i <= #chars do
+            local a = chars[i] or 0
+            local b = chars[i + 1] or 0
+            local c = chars[i + 2] or 0
+            local d = chars[i + 3] or 0
 
-	STRINGS = setmetatable(
-		{},
-		{
-			__index = realStrings,
-			__metatable = nil
-		}
-	)
+            local n1 = a * 4 + floor(b / 16)
+            local n2 = (b % 16) * 16 + floor(c / 4)
+            local n3 = (c % 4) * 64 + d
 
-	function DECRYPT(str, seed)
-		local realStringsLocal = realStrings
-		
-		if realStringsLocal[seed] then
-			return seed
-		end
-		
-		if #str % 2 ~= 0 then
-			realStringsLocal[seed] = ""
-			return seed
-		end
-		
-		local bytes = {}
-		local outIndex = 1
-		
-		for i = 1, #str, 2 do
-			local c1 = charmap[sub(str, i, i)]
-			local c2 = charmap[sub(str, i + 1, i + 1)]
-			
-			if c1 == nil or c2 == nil then
-				realStringsLocal[seed] = ""
-				return seed
-			end
-			
-			local encryptedByte = c1 * ALPHABET_SIZE + c2
-			
-			if encryptedByte < 0 or encryptedByte > 255 then
-				realStringsLocal[seed] = ""
-				return seed
-			end
-			
-			bytes[outIndex] = encryptedByte
-			outIndex = outIndex + 1
-		end
-		
-		local result = {}
-		local s = seed
-		local prevVal = ]] .. tostring(secret_key_8) .. [[
-		
-		for i = 1, #bytes do
-			s = (s * 1103515245 + 12345) % 2^32
-			local randomByte = floor(s / 65536) % 256
-			
-			local originalByte = (bytes[i] + randomByte + prevVal) % 256
-			result[i] = char(originalByte)
-			prevVal = originalByte
-		end
-		
-		local final = concat(result)
-		realStringsLocal[seed] = final
-		
-		return seed
-	end
+            result[#result + 1] = char(n1)
+            if i + 2 <= #chars then
+                result[#result + 1] = char(n2)
+            end
+            if i + 3 <= #chars then
+                result[#result + 1] = char(n3)
+            end
+
+            i = i + 4
+        end
+
+        return concat(result)
+    end
+
+    local realStrings = {}
+
+    STRINGS = setmetatable(
+        {},
+        {
+            __index = function(t, k)
+                if k == nil or type(k) ~= "string" then
+                    return ""
+                end
+                return realStrings[k]
+            end,
+            __metatable = nil
+        }
+    )
+
+    function DECRYPT(str, seed)
+        if str == nil or seed == nil then
+            return ""
+        end
+
+        if type(seed) ~= "number" or seed == 0 then
+            return ""
+        end
+
+        local realStringsLocal = realStrings
+
+        if realStringsLocal[seed] then
+            return seed
+        end
+
+        if #str == 0 then
+            realStringsLocal[seed] = ""
+            return seed
+        end
+
+        -- ถอด Base64
+        local decoded = base64_decode(str)
+
+        -- XOR ถอดรหัส
+        local result = {}
+        local s = seed
+        local prevVal = ]] .. tostring(secret_key_8) .. [[
+
+        for i = 1, #decoded do
+            s = (s * 1103515245 + 12345) % 2^32
+            local randomByte = floor(s / 65536) % 256
+            local originalByte = (byte(decoded, i) + randomByte + prevVal) % 256
+            result[i] = char(originalByte)
+            prevVal = originalByte
+        end
+
+        local final = concat(result)
+        realStringsLocal[seed] = final
+
+        return seed
+    end
 
 end
 ]]
-		return code
-	end
+    end
 
-	return {
-		encrypt = encrypt,
-		genCode = genCode
-	}
+    return { encrypt = encrypt, genCode = genCode }
 end
 
 function EncryptStrings:apply(ast, pipeline)
+    local Encryptor = self:CreateEncrypionService()
+    local code = Encryptor.genCode()
 
-	local Encryptor = self:CreateEncrypionService()
-	local code = Encryptor.genCode()
+    local newAst = Parser:new({ LuaVersion = Enums.LuaVersion.Lua51 }):parse(code)
+    local doStat = newAst.body.statements[1]
+    local scope = ast.body.scope
+    local decryptVar = scope:addVariable()
+    local stringsVar = scope:addVariable()
 
-	local newAst = Parser:new({
-		LuaVersion = Enums.LuaVersion.Lua51
-	}):parse(code)
+    doStat.body.scope:setParent(ast.body.scope)
 
-	local doStat = newAst.body.statements[1]
-	local scope = ast.body.scope
-	local decryptVar = scope:addVariable()
-	local stringsVar = scope:addVariable()
+    visitast(newAst, nil, function(node, data)
+        if node.kind == AstKind.FunctionDeclaration then
+            if node.scope:getVariableName(node.id) == "DECRYPT" then
+                data.scope:removeReferenceToHigherScope(node.scope, node.id)
+                data.scope:addReferenceToHigherScope(scope, decryptVar)
+                node.scope = scope
+                node.id = decryptVar
+            end
+        end
 
-	doStat.body.scope:setParent(ast.body.scope)
+        if node.kind == AstKind.AssignmentVariable or node.kind == AstKind.VariableExpression then
+            if node.scope:getVariableName(node.id) == "STRINGS" then
+                data.scope:removeReferenceToHigherScope(node.scope, node.id)
+                data.scope:addReferenceToHigherScope(scope, stringsVar)
+                node.scope = scope
+                node.id = stringsVar
+            end
+        end
+    end)
 
-	visitast(
-		newAst,
-		nil,
-		function(node, data)
-			if node.kind == AstKind.FunctionDeclaration then
-				if node.scope:getVariableName(node.id) == "DECRYPT" then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id)
-					data.scope:addReferenceToHigherScope(scope, decryptVar)
-					node.scope = scope
-					node.id = decryptVar
-				end
-			end
+    visitast(ast, nil, function(node, data)
+        if node.kind == AstKind.StringExpression then
+            data.scope:addReferenceToHigherScope(scope, stringsVar)
+            data.scope:addReferenceToHigherScope(scope, decryptVar)
 
-			if node.kind == AstKind.AssignmentVariable or node.kind == AstKind.VariableExpression then
-				if node.scope:getVariableName(node.id) == "STRINGS" then
-					data.scope:removeReferenceToHigherScope(node.scope, node.id)
-					data.scope:addReferenceToHigherScope(scope, stringsVar)
-					node.scope = scope
-					node.id = stringsVar
-				end
-			end
-		end
-	)
+            local encrypted, seed = Encryptor.encrypt(node.value)
 
-	visitast(
-		ast,
-		nil,
-		function(node, data)
-			if node.kind == AstKind.StringExpression then
-				data.scope:addReferenceToHigherScope(scope, stringsVar)
-				data.scope:addReferenceToHigherScope(scope, decryptVar)
+            return Ast.IndexExpression(
+                Ast.VariableExpression(scope, stringsVar),
+                Ast.FunctionCallExpression(
+                    Ast.VariableExpression(scope, decryptVar),
+                    {
+                        Ast.StringExpression(encrypted),
+                        Ast.NumberExpression(seed)
+                    }
+                )
+            )
+        end
+    end)
 
-				local encrypted, seed = Encryptor.encrypt(node.value)
+    table.insert(ast.body.statements, 1, doStat)
+    table.insert(
+        ast.body.statements,
+        1,
+        Ast.LocalVariableDeclaration(
+            scope,
+            util.shuffle{decryptVar, stringsVar},
+            {}
+        )
+    )
 
-				return Ast.IndexExpression(
-					Ast.VariableExpression(scope, stringsVar),
-					Ast.FunctionCallExpression(
-						Ast.VariableExpression(scope, decryptVar),
-						{
-							Ast.StringExpression(encrypted),
-							Ast.NumberExpression(seed)
-						}
-					)
-				)
-			end
-		end
-	)
-
-	table.insert(ast.body.statements, 1, doStat)
-	table.insert(
-		ast.body.statements,
-		1,
-		Ast.LocalVariableDeclaration(
-			scope,
-			util.shuffle{decryptVar, stringsVar},
-			{}
-		)
-	)
-
-	return ast
+    return ast
 end
 
 return EncryptStrings
