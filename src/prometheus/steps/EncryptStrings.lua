@@ -2,11 +2,9 @@
 --
 -- EncryptStrings.lua
 --
--- This Script provides a Simple Obfuscation Step that encrypts strings.
--- All encrypted strings are pooled into base64 entries, indexed by their
--- own position (idx doubles as the PRNG seed, so nothing extra needs to
--- be embedded per-entry), then split across several chunk tables linked
--- with __index metatables so no single table literal is huge.
+-- This Script provides a Simple Obfuscation Step that encrypts strings
+-- and pools every encrypted string into a single base64-encoded table
+-- ("lm"), accessed by index, instead of one seed-per-string call.
 
 local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
@@ -29,6 +27,8 @@ function EncryptStrings:init(settings) end
 
 
 function EncryptStrings:CreateEncrypionService()
+	local usedSeeds = {};
+
 	local secret_key_6 = math.random(0, 63) -- 6-bit  arbitrary integer (0..63)
 	local secret_key_7 = math.random(0, 127) -- 7-bit  arbitrary integer (0..127)
 	local secret_key_44 = math.random(0, 17592186044415) -- 44-bit arbitrary integer (0..17592186044415)
@@ -58,6 +58,15 @@ function EncryptStrings:CreateEncrypionService()
 		prev_values = {}
 	end
 
+	local function gen_seed()
+		local seed;
+		repeat
+			seed = math.random(0, 35184372088832);
+		until not usedSeeds[seed];
+		usedSeeds[seed] = true;
+		return seed;
+	end
+
 	local function get_random_32()
 		state_45 = (state_45 * param_mul_45 + param_add_45) % 35184372088832
 		repeat
@@ -79,13 +88,12 @@ function EncryptStrings:CreateEncrypionService()
 			local b4 = (high_16 - b3) / 256
 			prev_values = { b1, b2, b3, b4 }
 		end
+		--print(unpack(prev_values))
 		return table.remove(prev_values)
 	end
 
-	-- seed here is just the string's own pool index (idx). Since every
-	-- idx is unique, the keystream is unique per string without needing
-	-- to store/transmit a separate random seed alongside the payload.
-	local function encrypt(str, seed)
+	local function encrypt(str)
+		local seed = gen_seed();
 		set_seed(seed)
 		local len = string.len(str)
 		local out = {}
@@ -95,70 +103,27 @@ function EncryptStrings:CreateEncrypionService()
 			out[i] = string.char((byte - (get_next_pseudo_random_byte() + prevVal)) % 256);
 			prevVal = byte;
 		end
-		return table.concat(out);
+		return table.concat(out), seed;
 	end
 
-	local function packEntry(encryptedPayload)
-		return util.b64encode(encryptedPayload)
-	end
-
-	local function randomGap()
-		local pool = { "", " ", "  ", "   ", "\t", " \t", "\t " }
-		return pool[math.random(1, #pool)]
-	end
-
-	local function doubleGap()
-		return randomGap() .. randomGap()
-	end
-
-	-- Splits `entries` (1-indexed list of base64 strings) into several
-	-- chunk tables of random size (3-8 entries each), linked back to
-	-- front via setmetatable(..., {__index = nextChunk}) so a single
-	-- `lm[idx]` lookup transparently falls through the whole chain.
-	local function buildChunkedTables(entries, varPrefix)
-		local n = #entries
-		local chunks = {}
-		local i = 1
-		while i <= n do
-			local size = math.random(3, 8)
-			local chunkEnd = math.min(i + size - 1, n)
-			table.insert(chunks, { from = i, to = chunkEnd })
-			i = chunkEnd + 1
+	-- Packs (encrypted payload, seed) into a single base64 string:
+	-- [6 little-endian seed bytes][encrypted payload bytes] -> base64
+	local function packEntry(encryptedPayload, seed)
+		local bytes = {}
+		local s = seed
+		for i = 1, 6 do
+			bytes[i] = s % 256
+			s = floor(s / 256)
 		end
-
-		if #chunks == 0 then
-			-- No strings in the program at all.
-			return string.format("local %s1={}", varPrefix), varPrefix .. "1"
-		end
-
-		local decls = {}
-		local prevVar = nil
-		for c = #chunks, 1, -1 do
-			local chunk = chunks[c]
-			local varName = varPrefix .. c
-			local parts = { "{", doubleGap() }
-			for k = chunk.from, chunk.to do
-				table.insert(parts, "[" .. k .. "]" .. doubleGap() .. "=" .. doubleGap() .. string.format("%q", entries[k]))
-				if k < chunk.to then
-					table.insert(parts, doubleGap() .. "," .. doubleGap())
-				end
-			end
-			table.insert(parts, doubleGap() .. "}")
-			local tableLiteral = table.concat(parts)
-
-			if prevVar then
-				table.insert(decls, 1, string.format("local %s=setmetatable(%s,{__index=%s})", varName, tableLiteral, prevVar))
-			else
-				table.insert(decls, 1, string.format("local %s=%s", varName, tableLiteral))
-			end
-			prevVar = varName
-		end
-
-		return table.concat(decls, "\n"), prevVar
+		return util.b64encode(string.char(table.unpack(bytes)) .. encryptedPayload)
 	end
 
     local function genCode(entries)
-		local lmDecls, lmVar = buildChunkedTables(entries, "lm")
+		local entryStrs = {}
+		for i, e in ipairs(entries) do
+			entryStrs[i] = string.format("%q", e)
+		end
+		local lmTable = "{" .. table.concat(entryStrs, ",") .. "}"
 
         local code = [[
 do
@@ -219,9 +184,7 @@ do
 		end))
 	end
 
-	]] .. lmDecls .. [[
-
-	local lm = ]] .. lmVar .. [[
+	local lm = ]] .. lmTable .. [[
 
 	local realStrings = {};
 	STRINGS = setmetatable({}, {
@@ -234,9 +197,14 @@ do
 		if(realStringsLocal[idx]) then else
 			prev_values = {};
 			local chars = charmap;
-			local payload = b64decode(lm[idx]);
-			state_45 = idx % 35184372088832
-			state_8 = idx % 255 + 2
+			local raw = b64decode(lm[idx]);
+			local seed = 0;
+			for i = 6, 1, -1 do
+				seed = seed * 256 + byte(raw, i);
+			end
+			state_45 = seed % 35184372088832
+			state_8 = seed % 255 + 2
+			local payload = raw:sub(7)
 			local len = #payload;
 			realStringsLocal[idx] = "";
 			local prevVal = ]] .. tostring(secret_key_8) .. [[;
@@ -271,14 +239,13 @@ function EncryptStrings:apply(ast, pipeline)
 	local decryptVar = scope:addVariable();
 	local stringsVar = scope:addVariable();
 
-	-- Encrypt every string literal, pool it into `entries` (idx doubles
-	-- as the seed), and replace the literal in-place with
-	-- STRINGS[DECRYPT(idx)].
+	-- Encrypt every string literal, pool it into `entries`, and replace
+	-- the literal in-place with STRINGS[DECRYPT(idx)].
 	visitast(ast, nil, function(node, data)
 		if(node.kind == AstKind.StringExpression) then
-			local idx = #entries + 1;
-			local encrypted = Encryptor.encrypt(node.value, idx);
-			table.insert(entries, Encryptor.packEntry(encrypted));
+			local encrypted, seed = Encryptor.encrypt(node.value);
+			table.insert(entries, Encryptor.packEntry(encrypted, seed));
+			local idx = #entries;
 
 			data.scope:addReferenceToHigherScope(scope, stringsVar);
 			data.scope:addReferenceToHigherScope(scope, decryptVar);
