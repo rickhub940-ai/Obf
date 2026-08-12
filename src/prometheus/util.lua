@@ -50,7 +50,7 @@ local function base64_encode(str)
 end
 
 -- =========================================================
--- BASE64 DECODE (ไม่ error คืนค่าว่าง)
+-- BASE64 DECODE
 -- =========================================================
 
 local function base64_decode(str)
@@ -333,10 +333,6 @@ local function readonly(obj)
 	return r
 end
 
--- =========================================================
--- RETURN
--- =========================================================
-
 return {
 	-- Table
 	lookupify = lookupify,
@@ -365,7 +361,7 @@ return {
 	readU32 = readU32,
 	writeU32 = writeU32,
 
-	-- Bit (ใช้ของ bit.numberlua)
+	-- Bit
 	band = bit32.band,
 	bor = bit32.bor,
 	bxor = bit32.bxor,
