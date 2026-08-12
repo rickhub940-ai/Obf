@@ -3,6 +3,8 @@
 -- EncryptStrings.lua
 --
 -- This Script provides a Simple Obfuscation Step that encrypts strings
+-- and pools every encrypted string into a single base64-encoded table
+-- ("lm"), accessed by index, instead of one seed-per-string call.
 
 local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
@@ -27,10 +29,10 @@ function EncryptStrings:init(settings) end
 function EncryptStrings:CreateEncrypionService()
 	local usedSeeds = {};
 
-	local secret_key_6 = math.random(0, 63)
-	local secret_key_7 = math.random(0, 127)
-	local secret_key_44 = math.random(0, 17592186044415)
-	local secret_key_8 = math.random(0, 255);
+	local secret_key_6 = math.random(0, 63) -- 6-bit  arbitrary integer (0..63)
+	local secret_key_7 = math.random(0, 127) -- 7-bit  arbitrary integer (0..127)
+	local secret_key_44 = math.random(0, 17592186044415) -- 44-bit arbitrary integer (0..17592186044415)
+	local secret_key_8 = math.random(0, 255); -- 8-bit  arbitrary integer (0..255)
 
 	local floor = math.floor
 
@@ -77,7 +79,7 @@ function EncryptStrings:CreateEncrypionService()
 
 	local function get_next_pseudo_random_byte()
 		if #prev_values == 0 then
-			local rnd = get_random_32()
+			local rnd = get_random_32() -- value 0..4294967295
 			local low_16 = rnd % 65536
 			local high_16 = (rnd - low_16) / 65536
 			local b1 = low_16 % 256
@@ -86,6 +88,7 @@ function EncryptStrings:CreateEncrypionService()
 			local b4 = (high_16 - b3) / 256
 			prev_values = { b1, b2, b3, b4 }
 		end
+		--print(unpack(prev_values))
 		return table.remove(prev_values)
 	end
 
@@ -103,30 +106,45 @@ function EncryptStrings:CreateEncrypionService()
 		return table.concat(out), seed;
 	end
 
-    local function genCode()
+	-- Packs (encrypted payload, seed) into a single base64 string:
+	-- [6 little-endian seed bytes][encrypted payload bytes] -> base64
+	local function packEntry(encryptedPayload, seed)
+		local bytes = {}
+		local s = seed
+		for i = 1, 6 do
+			bytes[i] = s % 256
+			s = floor(s / 256)
+		end
+		return util.b64encode(string.char(table.unpack(bytes)) .. encryptedPayload)
+	end
+
+    local function genCode(entries)
+		local entryStrs = {}
+		for i, e in ipairs(entries) do
+			entryStrs[i] = string.format("%q", e)
+		end
+		local lmTable = "{" .. table.concat(entryStrs, ",") .. "}"
+
         local code = [[
 do
 	local floor = math.floor
 	local random = math.random;
 	local remove = table.remove;
 	local char = string.char;
+	local byte = string.byte;
 	local state_45 = 0
 	local state_8 = 2
-	local digits = {}
 	local charmap = {};
-	local i = 0;
 
-	-- แก้จุดที่ 1: nums[i] = i - 1
 	local nums = {};
 	for i = 1, 256 do
-		nums[i] = i - 1;
+		nums[i] = i;
 	end
 
 	repeat
 		local idx = random(1, #nums);
 		local n = remove(nums, idx);
-		-- แก้จุดที่ 2: char(n) แทน char(n-1)
-		charmap[n] = char(n);
+		charmap[n] = char(n - 1);
 	until #nums == 0;
 
 	local prev_values = {}
@@ -150,47 +168,52 @@ do
 		return table.remove(prev_values)
 	end
 
+	local B64C = "]] .. util.B64C .. [["
+	local function b64decode(data)
+		data = data:gsub('[^'..B64C..'=]', '')
+		return (data:gsub('.', function(x)
+			if x == '=' then return '' end
+			local r, f = '', (B64C:find(x, 1, true) - 1)
+			for i = 6, 1, -1 do r = r .. (f % 2^i - f % 2^(i-1) > 0 and '1' or '0') end
+			return r
+		end):gsub('%d%d%d?%d?%d?%d?%d?%d?', function(x)
+			if #x ~= 8 then return '' end
+			local c = 0
+			for i = 1, 8 do c = c + (x:sub(i,i) == '1' and 2^(8-i) or 0) end
+			return char(c)
+		end))
+	end
+
+	local lm = ]] .. lmTable .. [[
+
 	local realStrings = {};
 	STRINGS = setmetatable({}, {
 		__index = realStrings;
 		__metatable = nil;
 	});
 
-  	function DECRYPT(str, seed)
-		-- แก้จุดที่ 3: เพิ่มป้องกัน nil
-		if str == nil or seed == nil then
-			return ""
-		end
-		if type(seed) ~= "number" or seed == 0 then
-			return ""
-		end
-		if type(str) ~= "string" or #str == 0 then
-			return ""
-		end
-		
+  	function DECRYPT(idx)
 		local realStringsLocal = realStrings;
-		if(realStringsLocal[seed]) then
-			return seed
+		if(realStringsLocal[idx]) then else
+			prev_values = {};
+			local chars = charmap;
+			local raw = b64decode(lm[idx]);
+			local seed = 0;
+			for i = 6, 1, -1 do
+				seed = seed * 256 + byte(raw, i);
+			end
+			state_45 = seed % 35184372088832
+			state_8 = seed % 255 + 2
+			local payload = raw:sub(7)
+			local len = #payload;
+			realStringsLocal[idx] = "";
+			local prevVal = ]] .. tostring(secret_key_8) .. [[;
+			for i=1, len do
+				prevVal = (byte(payload, i) + get_next_pseudo_random_byte() + prevVal) % 256
+				realStringsLocal[idx] = realStringsLocal[idx] .. chars[prevVal + 1];
+			end
 		end
-		
-		prev_values = {};
-		local chars = charmap;
-		state_45 = seed % 35184372088832
-		state_8 = seed % 255 + 2
-		local len = string.len(str);
-		local result = {};
-		local prevVal = ]] .. tostring(secret_key_8) .. [[;
-		
-		for i = 1, len do
-			local byte = string.byte(str, i)
-			local randomByte = get_next_pseudo_random_byte()
-			local originalByte = (byte + randomByte + prevVal) % 256
-			result[i] = chars[originalByte] or char(originalByte)
-			prevVal = originalByte
-		end
-		
-		realStringsLocal[seed] = table.concat(result);
-		return seed;
+		return idx;
 	end
 end]]
 
@@ -203,21 +226,39 @@ end]]
         param_mul_8 = param_mul_8,
         param_add_45 = param_add_45,
 		secret_key_8 = secret_key_8,
+		packEntry = packEntry,
         genCode = genCode,
     }
 end
 
 function EncryptStrings:apply(ast, pipeline)
     local Encryptor = self:CreateEncrypionService();
-
-	local code = Encryptor.genCode();
-	local newAst = Parser:new({ LuaVersion = Enums.LuaVersion.Lua51 }):parse(code);
-	local doStat = newAst.body.statements[1];
+	local entries = {};
 
 	local scope = ast.body.scope;
 	local decryptVar = scope:addVariable();
 	local stringsVar = scope:addVariable();
-	
+
+	-- Encrypt every string literal, pool it into `entries`, and replace
+	-- the literal in-place with STRINGS[DECRYPT(idx)].
+	visitast(ast, nil, function(node, data)
+		if(node.kind == AstKind.StringExpression) then
+			local encrypted, seed = Encryptor.encrypt(node.value);
+			table.insert(entries, Encryptor.packEntry(encrypted, seed));
+			local idx = #entries;
+
+			data.scope:addReferenceToHigherScope(scope, stringsVar);
+			data.scope:addReferenceToHigherScope(scope, decryptVar);
+			return Ast.IndexExpression(Ast.VariableExpression(scope, stringsVar), Ast.FunctionCallExpression(Ast.VariableExpression(scope, decryptVar), {
+				Ast.NumberExpression(idx),
+			}));
+		end
+	end)
+
+	local code = Encryptor.genCode(entries);
+	local newAst = Parser:new({ LuaVersion = Enums.LuaVersion.Lua51 }):parse(code);
+	local doStat = newAst.body.statements[1];
+
 	doStat.body.scope:setParent(ast.body.scope);
 
 	visitast(newAst, nil, function(node, data)
@@ -238,18 +279,6 @@ function EncryptStrings:apply(ast, pipeline)
 			end
 		end
 	end)
-
-	visitast(ast, nil, function(node, data)
-		if(node.kind == AstKind.StringExpression) then
-			data.scope:addReferenceToHigherScope(scope, stringsVar);
-			data.scope:addReferenceToHigherScope(scope, decryptVar);
-			local encrypted, seed = Encryptor.encrypt(node.value);
-			return Ast.IndexExpression(Ast.VariableExpression(scope, stringsVar), Ast.FunctionCallExpression(Ast.VariableExpression(scope, decryptVar), {
-				Ast.StringExpression(encrypted), Ast.NumberExpression(seed),
-			}));
-		end
-	end)
-
 
 	-- Insert to Main Ast
 	table.insert(ast.body.statements, 1, doStat);
