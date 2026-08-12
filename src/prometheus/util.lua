@@ -272,6 +272,8 @@ local function readonly(obj)
 end
 
 -- Standard Base64 (RFC 4648) alphabet + encode/decode.
+-- Used by EncryptStrings to pool all encrypted strings into a single
+-- base64-encoded table instead of emitting a raw numeric seed per string.
 local B64C = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
 local function b64encode(data)
