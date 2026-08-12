@@ -11,7 +11,10 @@ local MAX_UNPACK_COUNT = 195
 -- Base64 encoding table
 local base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
--- Base64 Encode (ใช้ bit32 ตามเดิม)
+-- =========================================================
+-- BASE64 ENCODE
+-- =========================================================
+
 local function base64_encode(str)
 	local result = ""
 	local i = 1
@@ -45,18 +48,33 @@ local function base64_encode(str)
 	return result
 end
 
--- Base64 Decode (เพิ่มเข้าไป)
+-- =========================================================
+-- BASE64 DECODE (ไม่ error คืนค่าว่าง)
+-- =========================================================
+
 local function base64_decode(str)
+	-- ตรวจสอบว่าเป็น Base64 จริงไหม
+	if type(str) ~= "string" then
+		return ""
+	end
+	
 	-- เอาเครื่องหมาย = ออก
 	local clean = str:gsub("=", "")
 	
+	-- ตรวจสอบตัวอักษรว่าอยู่ใน Base64 ไหม
 	local bytes = {}
 	for i = 1, #clean do
 		local char = clean:sub(i, i)
-		local pos = base64_chars:find(char) - 1
-		if pos >= 0 then
-			bytes[i] = pos
+		local pos = base64_chars:find(char)
+		if not pos then
+			return ""  -- มีตัวอักษรที่ไม่ใช่ Base64
 		end
+		bytes[i] = pos - 1
+	end
+	
+	-- ถ้าความยาวไม่ถูกต้อง
+	if #bytes % 4 ~= 0 then
+		return ""
 	end
 	
 	local result = {}
@@ -85,7 +103,10 @@ local function base64_decode(str)
 	return table.concat(result)
 end
 
--- ฟังก์ชันอื่นๆ เหมือนเดิม
+-- =========================================================
+-- UTILITY FUNCTIONS
+-- =========================================================
+
 local function lookupify(tb)
 	local tb2 = {}
 	for _, v in ipairs(tb) do
@@ -106,12 +127,10 @@ local function escape(str)
 	return base64_encode(str)
 end
 
--- เพิ่ม unescape สำหรับถอดรหัส
 local function unescape(str)
 	return base64_decode(str)
 end
 
--- ฟังก์ชันอื่นๆ เหมือนเดิม
 local function chararray(str)
 	local tb = {}
 	for i = 1, #str do
@@ -176,7 +195,10 @@ local function shuffle_string(str)
 	return table.concat(t)
 end
 
--- ฟังก์ชันอ่าน/เขียน Double, U16, U24, U32 (เหมือนเดิม)
+-- =========================================================
+-- NUMBER FUNCTIONS
+-- =========================================================
+
 local function readDouble(bytes)
 	local sign = 1
 	local mantissa = bytes[2] % 2^4
@@ -314,6 +336,10 @@ local function readonly(obj)
 	return r
 end
 
+-- =========================================================
+-- RETURN
+-- =========================================================
+
 return {
 	-- Table
 	lookupify = lookupify,
@@ -323,7 +349,7 @@ return {
 
 	-- String
 	escape = escape,
-	unescape = unescape,  -- เพิ่มฟังก์ชันถอดรหัส
+	unescape = unescape,
 	chararray = chararray,
 	shuffle_string = shuffle_string,
 	utf8char = utf8char,
