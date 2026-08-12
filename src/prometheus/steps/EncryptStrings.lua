@@ -29,16 +29,14 @@ function EncryptStrings:CreateEncrypionService()
 	local usedSeeds = {}
 
 	-- 24 ตัวอักษร (24x24 = 576 ครอบคลุม 0-255)
-	local ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ"  -- 24 ตัว (ไม่ซ้ำ)
+	local ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ"
 	local ALPHABET_SIZE = 24
 
-	-- ตรวจสอบ
 	assert(
 		ALPHABET_SIZE == 24,
 		"Alphabet must contain exactly 24 characters"
 	)
 
-	-- ตรวจตัวซ้ำ
 	do
 		local check = {}
 		for i = 1, ALPHABET_SIZE do
@@ -49,16 +47,7 @@ function EncryptStrings:CreateEncrypionService()
 	end
 
 	local floor = math.floor
-
-	-- =========================================================
-	-- RANDOM PARAMETERS
-	-- =========================================================
-
 	local secret_key_8 = math.random(0, 255)
-
-	-- =========================================================
-	-- ENCRYPT (1 byte -> 2 chars)
-	-- =========================================================
 
 	local function encrypt(str)
 		local seed = math.random(0, 999999)
@@ -68,14 +57,11 @@ function EncryptStrings:CreateEncrypionService()
 		for i = 1, #str do
 			local byte = string.byte(str, i)
 			
-			-- LCG random
 			seed = (seed * 1103515245 + 12345) % 2^32
 			local randomByte = floor(seed / 65536) % 256
 			
-			-- XOR + prevVal
 			local encodedByte = (byte - (randomByte + prevVal)) % 256
 			
-			-- แปลง 1 byte เป็น 2 ตัวอักษร
 			local high = floor(encodedByte / ALPHABET_SIZE)
 			local low = encodedByte % ALPHABET_SIZE
 			
@@ -87,65 +73,6 @@ function EncryptStrings:CreateEncrypionService()
 		
 		return table.concat(out), seed
 	end
-
-	-- =========================================================
-	-- DECRYPT (สำหรับใช้ในโค้ดหลัก)
-	-- =========================================================
-
-	local function decrypt(str, seed)
-		-- ตรวจสอบความยาว
-		if #str % 2 ~= 0 then
-			return ""
-		end
-		
-		-- สร้าง charmap
-		local charmap = {}
-		for i = 1, ALPHABET_SIZE do
-			charmap[ALPHABET:sub(i, i)] = i - 1
-		end
-		
-		-- แปลง 2 ตัวอักษร -> 1 byte
-		local bytes = {}
-		local outIndex = 1
-		
-		for i = 1, #str, 2 do
-			local c1 = charmap[str:sub(i, i)]
-			local c2 = charmap[str:sub(i + 1, i + 1)]
-			
-			if c1 == nil or c2 == nil then
-				return ""
-			end
-			
-			local encryptedByte = c1 * ALPHABET_SIZE + c2
-			
-			if encryptedByte < 0 or encryptedByte > 255 then
-				return ""
-			end
-			
-			bytes[outIndex] = encryptedByte
-			outIndex = outIndex + 1
-		end
-		
-		-- ถอดรหัสด้วย LCG
-		local result = {}
-		local s = seed
-		local prevVal = secret_key_8
-		
-		for i = 1, #bytes do
-			s = (s * 1103515245 + 12345) % 2^32
-			local randomByte = floor(s / 65536) % 256
-			
-			local originalByte = (bytes[i] + randomByte + prevVal) % 256
-			result[i] = string.char(originalByte)
-			prevVal = originalByte
-		end
-		
-		return table.concat(result)
-	end
-
-	-- =========================================================
-	-- GENERATED RUNTIME DECRYPTOR
-	-- =========================================================
 
 	local function genCode()
 		local code = [[
@@ -160,7 +87,6 @@ do
 	local ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ"
 	local ALPHABET_SIZE = 24
 
-	-- สร้างตาราง map ตัวอักษร -> ค่า
 	local charmap = {}
 	for i = 1, ALPHABET_SIZE do
 		charmap[sub(ALPHABET, i, i)] = i - 1
@@ -179,18 +105,15 @@ do
 	function DECRYPT(str, seed)
 		local realStringsLocal = realStrings
 		
-		-- ถ้า decrypt ไปแล้ว คืนค่าเดิม
 		if realStringsLocal[seed] then
 			return seed
 		end
 		
-		-- ตรวจสอบความยาว
 		if #str % 2 ~= 0 then
 			realStringsLocal[seed] = ""
 			return seed
 		end
 		
-		-- แปลง 2 ตัวอักษร -> 1 byte
 		local bytes = {}
 		local outIndex = 1
 		
@@ -214,7 +137,6 @@ do
 			outIndex = outIndex + 1
 		end
 		
-		-- ถอดรหัสด้วย LCG
 		local result = {}
 		local s = seed
 		local prevVal = ]] .. tostring(secret_key_8) .. [[
@@ -241,14 +163,9 @@ end
 
 	return {
 		encrypt = encrypt,
-		decrypt = decrypt,
 		genCode = genCode
 	}
 end
-
--- =========================================================
--- APPLY
--- =========================================================
 
 function EncryptStrings:apply(ast, pipeline)
 
@@ -265,10 +182,6 @@ function EncryptStrings:apply(ast, pipeline)
 	local stringsVar = scope:addVariable()
 
 	doStat.body.scope:setParent(ast.body.scope)
-
-	-- =========================================================
-	-- CONNECT DECRYPT / STRINGS TO MAIN SCOPE
-	-- =========================================================
 
 	visitast(
 		newAst,
@@ -294,10 +207,6 @@ function EncryptStrings:apply(ast, pipeline)
 		end
 	)
 
-	-- =========================================================
-	-- REPLACE STRING EXPRESSIONS
-	-- =========================================================
-
 	visitast(
 		ast,
 		nil,
@@ -321,10 +230,6 @@ function EncryptStrings:apply(ast, pipeline)
 			end
 		end
 	)
-
-	-- =========================================================
-	-- INSERT RUNTIME
-	-- =========================================================
 
 	table.insert(ast.body.statements, 1, doStat)
 	table.insert(
