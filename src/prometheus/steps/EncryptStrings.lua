@@ -1,5 +1,5 @@
 -- EncryptStrings.lua
--- Prometheus - Chunked String Pool (Binary Seed & Binary Identifiers)
+-- Prometheus - Chunked String Pool
 
 local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
@@ -153,8 +153,11 @@ function EncryptStrings:CreateEncrypionService()
         )
     end
 
+    -- แบ่ง Base64 string เป็น chunk
     local function splitChunks(str)
         local chunks = {}
+
+        -- แต่ละ chunk มีความยาวแบบสุ่ม
         local pos = 1
 
         while pos <= #str do
@@ -167,17 +170,6 @@ function EncryptStrings:CreateEncrypionService()
         end
 
         return chunks
-    end
-
-    -- ฟังก์ชันแปลงตัวเลข (รองรับทั้งเลขเล็กและเลข Seed ขนาดใหญ่) เป็นสตริง binary
-    local function toBinStr(n)
-        if n == 0 or not n then return "0" end
-        local t = {}
-        while n > 0 do
-            table.insert(t, 1, tostring(math.floor(n % 2)))
-            n = math.floor(n / 2)
-        end
-        return table.concat(t)
     end
 
     local function genCode(entries)
@@ -198,204 +190,197 @@ function EncryptStrings:CreateEncrypionService()
         local lmTable =
             "{" .. table.concat(stringEntries, ",") .. "}"
 
-        -- แปลง Seed และ param ค่าคงที่ทั้งหมดเป็นเลขฐาน 2
-        local bin_param_mul_45 = toBinStr(param_mul_45)
-        local bin_param_add_45 = toBinStr(param_add_45)
-        local bin_param_mul_8  = toBinStr(param_mul_8)
-        local bin_secret_key_8 = toBinStr(secret_key_8)
-
         local code = [[
 do
-    -- ซ่อน tonumber ไว้ที่ตัวแปร _0B0 ตัวเดียว
-    local _0B0 = tonumber
+    local floor = math.floor
+    local remove = table.remove
+    local char = string.char
+    local byte = string.byte
 
-    local _0B1 = math.floor
-    local _0B10 = table.remove
-    local _0B11 = string.char
-    local _0B100 = string.byte
+    local state_45 = 0
+    local state_8 = 2
+    local charmap = {}
 
-    local _0B101 = _0B0("0", 2)
-    local _0B110 = _0B0("10", 2)
-    local _0B111 = {}
+    local nums = {}
 
-    local _0B1000 = {}
-
-    for _0B1001 = _0B0("1", 2), _0B0("100000000", 2) do
-        _0B1000[_0B1001] = _0B1001
+    for i = 1, 256 do
+        nums[i] = i
     end
 
     repeat
-        local _0B1010 = math.random(_0B0("1", 2), #_0B1000)
-        local _0B1011 = _0B10(_0B1000, _0B1010)
+        local idx = math.random(1, #nums)
+        local n = remove(nums, idx)
 
-        _0B111[_0B1011] = _0B11(_0B1011 - _0B0("1", 2))
-    until #_0B1000 == _0B0("0", 2)
+        charmap[n] = char(n - 1)
+    until #nums == 0
 
-    local _0B1100 = {}
+    local prev_values = {}
 
-    local function _0B1101()
-        if #_0B1100 == _0B0("0", 2) then
+    local function get_next_pseudo_random_byte()
+        if #prev_values == 0 then
             state_45 =
-                (state_45 * _0B0("]] .. bin_param_mul_45 .. [[", 2)
-                + _0B0("]] .. bin_param_add_45 .. [[", 2))
-                % _0B0("100000000000000000000000000000000000000000000", 2)
+                (state_45 * ]] .. tostring(param_mul_45) .. [[
+                + ]] .. tostring(param_add_45) .. [[)
+                % 35184372088832
 
             repeat
-                _0B110 =
-                    _0B110 * _0B0("]] .. bin_param_mul_8 .. [[", 2)
-                    % _0B0("100000001", 2)
-            until _0B110 ~= _0B0("1", 2)
+                state_8 =
+                    state_8 * ]] .. tostring(param_mul_8) .. [[
+                    % 257
+            until state_8 ~= 1
 
-            local _0B1110 = _0B110 % _0B0("100000", 2)
+            local r = state_8 % 32
 
-            local _0B1111 =
-                _0B1(
+            local n =
+                floor(
                     state_45 /
-                    _0B0("10", 2) ^ (_0B0("1101", 2) - (_0B110 - _0B1110) / _0B0("100000", 2))
+                    2 ^ (13 - (state_8 - r) / 32)
                 )
-                % _0B0("10", 2) ^ _0B0("100000", 2)
-                / _0B0("10", 2) ^ _0B0("100000", 2)
+                % 2 ^ 32
+                / 2 ^ r
 
-            local _0B10000 =
-                _0B1(_0B1111 % _0B0("1", 2) * _0B0("10", 2) ^ _0B0("100000", 2)) +
-                _0B1(_0B1111)
+            local rnd =
+                floor(n % 1 * 2 ^ 32) +
+                floor(n)
 
-            local _0B10001 = _0B10000 % _0B0("10000000000000000", 2)
-            local _0B10010 =
-                (_0B10000 - _0B10001) / _0B0("10000000000000000", 2)
+            local low_16 = rnd % 65536
+            local high_16 =
+                (rnd - low_16) / 65536
 
-            local _0B10011 = _0B10001 % _0B0("100000000", 2)
-            local _0B10100 = (_0B10001 - _0B10011) / _0B0("100000000", 2)
-            local _0B10101 = _0B10010 % _0B0("100000000", 2)
-            local _0B10110 = (_0B10010 - _0B10101) / _0B0("100000000", 2)
+            local b1 = low_16 % 256
+            local b2 = (low_16 - b1) / 256
+            local b3 = high_16 % 256
+            local b4 = (high_16 - b3) / 256
 
-            _0B1100 = {
-                _0B10011,
-                _0B10100,
-                _0B10101,
-                _0B10110
+            prev_values = {
+                b1,
+                b2,
+                b3,
+                b4
             }
         end
 
-        return _0B10(_0B1100)
+        return table.remove(prev_values)
     end
 
-    local _0B10111 = "]] .. util.B64C .. [["
+    local B64C = "]] .. util.B64C .. [["
 
-    local function _0B11000(_0B11001)
-        _0B11001 =
-            _0B11001:gsub(
-                '[^' .. _0B10111 .. '=]',
+    local function b64decode(data)
+        data =
+            data:gsub(
+                '[^' .. B64C .. '=]',
                 ''
             )
 
         return (
-            _0B11001:gsub('.', function(_0B11010)
-                if _0B11010 == '=' then
+            data:gsub('.', function(x)
+                if x == '=' then
                     return ''
                 end
 
-                local _0B11011 = ''
-                local _0B11100 =
-                    _0B10111:find(_0B11010, _0B0("1", 2), true) - _0B0("1", 2)
+                local r = ''
+                local f =
+                    B64C:find(x, 1, true) - 1
 
-                for _0B11101 = _0B0("110", 2), _0B0("1", 2), -_0B0("1", 2) do
-                    _0B11011 = _0B11011 ..
+                for i = 6, 1, -1 do
+                    r = r ..
                         (
-                            _0B11100 % _0B0("10", 2)^_0B11101 -
-                            _0B11100 % _0B0("10", 2)^(_0B11101 - _0B0("1", 2)) > _0B0("0", 2)
+                            f % 2^i -
+                            f % 2^(i - 1) > 0
                             and '1'
                             or '0'
                         )
                 end
 
-                return _0B11011
+                return r
             end)
             :gsub(
                 '%d%d%d?%d?%d?%d?%d?%d?',
-                function(_0B11010)
-                    if #_0B11010 ~= _0B0("1000", 2) then
+                function(x)
+                    if #x ~= 8 then
                         return ''
                     end
 
-                    local _0B11110 = _0B0("0", 2)
+                    local c = 0
 
-                    for _0B11101 = _0B0("1", 2), _0B0("1000", 2) do
-                        _0B11110 = _0B11110 +
+                    for i = 1, 8 do
+                        c = c +
                             (
-                                _0B11010:sub(_0B11101, _0B11101) == '1'
-                                and _0B0("10", 2)^(_0B0("1000", 2) - _0B11101)
-                                or _0B0("0", 2)
+                                x:sub(i, i) == '1'
+                                and 2^(8 - i)
+                                or 0
                             )
                     end
 
-                    return _0B11(_0B11110)
+                    return char(c)
                 end
             )
         )
     end
 
-    local _0B11111 = ]] .. lmTable .. [[
+    local lm = ]] .. lmTable .. [[
 
-    local _0B100000 = {}
+    local realStrings = {}
 
     STRINGS = setmetatable({}, {
-        __index = _0B100000,
+        __index = realStrings,
         __metatable = nil
     })
 
-    function DECRYPT(_0B100001)
-        if _0B100000[_0B100001] then
-            return _0B100001
+    function DECRYPT(idx)
+        if realStrings[idx] then
+            return idx
         end
 
-        _0B1100 = {}
+        prev_values = {}
 
-        local _0B100010 = _0B11111[_0B100001]
-        local _0B100011 = ""
+        -- รวม chunk ทั้งหมดกลับเป็น Base64
+        local chunks = lm[idx]
+        local encoded = ""
 
-        for _, _0B100100 in ipairs(_0B100010) do
-            _0B100011 = _0B100011 .. _0B100100
+        for _, chunk in ipairs(chunks) do
+            encoded = encoded .. chunk
         end
 
-        local _0B100101 = _0B11000(_0B100011)
+        local raw = b64decode(encoded)
 
-        local _0B100110 = _0B0("0", 2)
+        -- seed 6 bytes
+        local seed = 0
 
-        for _0B11101 = _0B0("110", 2), _0B0("1", 2), -_0B0("1", 2) do
-            _0B100110 =
-                _0B100110 * _0B0("100000000", 2) +
-                _0B100(_0B100101, _0B11101)
+        for i = 6, 1, -1 do
+            seed =
+                seed * 256 +
+                byte(raw, i)
         end
 
-        _0B101 =
-            _0B100110 % _0B0("100000000000000000000000000000000000000000000", 2)
+        state_45 =
+            seed % 35184372088832
 
-        _0B110 =
-            _0B100110 % _0B0("11111111", 2) + _0B0("10", 2)
+        state_8 =
+            seed % 255 + 2
 
-        local _0B100111 =
-            _0B100101:sub(_0B0("111", 2))
+        local payload =
+            raw:sub(7)
 
-        local _0B101000 = {}
-        local _0B101001 = _0B0("]] .. bin_secret_key_8 .. [[", 2)
+        local result = {}
+        local prevVal = ]] .. tostring(secret_key_8) .. [[
 
-        for _0B11101 = _0B0("1", 2), #_0B100111 do
-            _0B101001 =
+        for i = 1, #payload do
+            prevVal =
                 (
-                    _0B100(_0B100111, _0B11101)
-                    + _0B1101()
-                    + _0B101001
-                ) % _0B0("100000000", 2)
+                    byte(payload, i)
+                    + get_next_pseudo_random_byte()
+                    + prevVal
+                ) % 256
 
-            _0B101000[_0B11101] =
-                _0B111[_0B101001 + _0B0("1", 2)]
+            result[i] =
+                charmap[prevVal + 1]
         end
 
-        _0B100000[_0B100001] =
-            table.concat(_0B101000)
+        realStrings[idx] =
+            table.concat(result)
 
-        return _0B100001
+        return idx
     end
 end]]
 
