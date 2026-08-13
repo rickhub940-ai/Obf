@@ -4,7 +4,7 @@
 -- This Script contains the new Compiler
 
 -- The max Number of variables used as registers
-local MAX_REGS = 100;
+local MAX_REGS = 50;
 local MAX_REGS_MUL = 0;
 
 local Compiler = {};
