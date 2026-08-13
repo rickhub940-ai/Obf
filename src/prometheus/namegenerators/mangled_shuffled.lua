@@ -2,54 +2,49 @@
 --
 -- namegenerators/mangled_shuffled.lua
 --
--- Generates randomized 50-character mixed-case Lua identifiers.
+-- Short randomized Lua identifiers.
 
-local util = require("prometheus.util");
-
-local alphabet =
-    "abcdefghijklmnopqrstuvwxyz" ..
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-local usedNames = {};
+local usedNames = {}
+local alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+local prefix = "_0B"
 
 local function randomName()
-    local chars = {};
+	local a = math.random(1, #alphabet)
+	local b = math.random(1, #alphabet)
+	local c = math.random(1, #alphabet)
 
-    for i = 1, 5 do
-        local index = math.random(1, #alphabet);
-        chars[i] = alphabet:sub(index, index);
-    end
-
-    return table.concat(chars);
+	return prefix ..
+		alphabet:sub(a, a) ..
+		alphabet:sub(b, b) ..
+		alphabet:sub(c, c)
 end
 
-local function generateName(id, scope)
-    local name;
+local function generateName()
+	local name
 
-    repeat
-        name = randomName();
-    until not usedNames[name];
+	repeat
+		name = randomName()
+	until not usedNames[name]
 
-    usedNames[name] = true;
+	usedNames[name] = true
 
-    return name;
+	return name
 end
 
-local function prepare(ast)
-    usedNames = {};
+local function prepare()
+	usedNames = {}
 
-    math.randomseed(
-        os.time() +
-        math.floor(os.clock() * 1000000)
-    );
+	math.randomseed(
+		os.time() +
+		math.floor(os.clock() * 1000000)
+	)
 
-    -- Warm up the random generator.
-    for i = 1, 10 do
-        math.random();
-    end
+	for _ = 1, 8 do
+		math.random()
+	end
 end
 
 return {
-    generateName = generateName,
-    prepare = prepare
-};
+	generateName = generateName,
+	prepare = prepare
+}
