@@ -15,7 +15,7 @@ local usedNames = {};
 local function randomName()
     local chars = {};
 
-    for i = 1, 15 do
+    for i = 1, 5 do
         local index = math.random(1, #alphabet);
         chars[i] = alphabet:sub(index, index);
     end
