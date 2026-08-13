@@ -9,7 +9,7 @@ local alphabet =
 local used = {}
 
 local function randomString(length)
-    length = length or 8
+    length = length or 15
 
     local t = {}
 
@@ -41,7 +41,7 @@ local function prepare()
         math.floor(os.clock() * 1000000)
     )
 
-    for _ = 1, 8 do
+    for _ = 1, 15 do
         math.random()
     end
 end
