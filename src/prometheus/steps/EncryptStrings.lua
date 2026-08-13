@@ -1,5 +1,5 @@
 -- EncryptStrings.lua
--- Prometheus - Chunked String Pool (Full Binary Notation Style)
+-- Prometheus - Chunked String Pool (Binary Seed & Binary Identifiers)
 
 local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
@@ -169,12 +169,12 @@ function EncryptStrings:CreateEncrypionService()
         return chunks
     end
 
-    -- แปลงตัวเลขฐาน 10 เป็นสตริงฐาน 2
+    -- ฟังก์ชันแปลงตัวเลข (รองรับทั้งเลขเล็กและเลข Seed ขนาดใหญ่) เป็นสตริง binary
     local function toBinStr(n)
-        if n == 0 then return "0" end
+        if n == 0 or not n then return "0" end
         local t = {}
         while n > 0 do
-            table.insert(t, 1, n % 2)
+            table.insert(t, 1, tostring(math.floor(n % 2)))
             n = math.floor(n / 2)
         end
         return table.concat(t)
@@ -198,7 +198,7 @@ function EncryptStrings:CreateEncrypionService()
         local lmTable =
             "{" .. table.concat(stringEntries, ",") .. "}"
 
-        -- แปลงค่า param ที่สุ่มได้ให้เป็นรูปแบบฐาน 2
+        -- แปลง Seed และ param ค่าคงที่ทั้งหมดเป็นเลขฐาน 2
         local bin_param_mul_45 = toBinStr(param_mul_45)
         local bin_param_add_45 = toBinStr(param_add_45)
         local bin_param_mul_8  = toBinStr(param_mul_8)
@@ -206,10 +206,9 @@ function EncryptStrings:CreateEncrypionService()
 
         local code = [[
 do
-    -- _0B0 = tonumber
+    -- ซ่อน tonumber ไว้ที่ตัวแปร _0B0 ตัวเดียว
     local _0B0 = tonumber
 
-    -- เปลี่ยนตัวแปรระบบให้เป็นรูปแบบ _0B ทั้งหมด
     local _0B1 = math.floor
     local _0B10 = table.remove
     local _0B11 = string.char
@@ -236,8 +235,8 @@ do
 
     local function _0B1101()
         if #_0B1100 == _0B0("0", 2) then
-            _0B101 =
-                (_0B101 * _0B0("]] .. bin_param_mul_45 .. [[", 2)
+            state_45 =
+                (state_45 * _0B0("]] .. bin_param_mul_45 .. [[", 2)
                 + _0B0("]] .. bin_param_add_45 .. [[", 2))
                 % _0B0("100000000000000000000000000000000000000000000", 2)
 
@@ -251,7 +250,7 @@ do
 
             local _0B1111 =
                 _0B1(
-                    _0B101 /
+                    state_45 /
                     _0B0("10", 2) ^ (_0B0("1101", 2) - (_0B110 - _0B1110) / _0B0("100000", 2))
                 )
                 % _0B0("10", 2) ^ _0B0("100000", 2)
@@ -389,7 +388,7 @@ do
                     + _0B101001
                 ) % _0B0("100000000", 2)
 
-            _0B101000[_0B1101] =
+            _0B101000[_0B11101] =
                 _0B111[_0B101001 + _0B0("1", 2)]
         end
 
