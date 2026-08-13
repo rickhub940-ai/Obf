@@ -1,50 +1,53 @@
--- This Script is Part of the Prometheus Obfuscator by Levno_710
---
 -- namegenerators/mangled_shuffled.lua
---
--- Short randomized Lua identifiers.
 
-local usedNames = {}
-local alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-local prefix = "_0B"
+local alphabet =
+    "abcdefghijklmnopqrstuvwxyz" ..
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ" ..
+    "0123456789" ..
+    "@#$%^&*_-+=!?~"
 
-local function randomName()
-	local a = math.random(1, #alphabet)
-	local b = math.random(1, #alphabet)
-	local c = math.random(1, #alphabet)
+local used = {}
 
-	return prefix ..
-		alphabet:sub(a, a) ..
-		alphabet:sub(b, b) ..
-		alphabet:sub(c, c)
+local function randomString(length)
+    length = length or 8
+
+    local t = {}
+
+    for i = 1, length do
+        local n = math.random(1, #alphabet)
+        t[i] = alphabet:sub(n, n)
+    end
+
+    return table.concat(t)
 end
 
 local function generateName()
-	local name
+    local name
 
-	repeat
-		name = randomName()
-	until not usedNames[name]
+    repeat
+        name = randomString(5)
+    until not used[name]
 
-	usedNames[name] = true
+    used[name] = true
 
-	return name
+    return name
 end
 
 local function prepare()
-	usedNames = {}
+    used = {}
 
-	math.randomseed(
-		os.time() +
-		math.floor(os.clock() * 1000000)
-	)
+    math.randomseed(
+        os.time() +
+        math.floor(os.clock() * 1000000)
+    )
 
-	for _ = 1, 8 do
-		math.random()
-	end
+    for _ = 1, 8 do
+        math.random()
+    end
 end
 
 return {
-	generateName = generateName,
-	prepare = prepare
+    generateName = generateName,
+    randomString = randomString,
+    prepare = prepare
 }
