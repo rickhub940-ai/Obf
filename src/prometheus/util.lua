@@ -26,7 +26,7 @@ end
 
 local function escape(str)
 	return str:gsub(".", function(char)
-		if char:match("[^ -~\n\t\a\b\v\r\"\']") then -- Check if non Printable ASCII Character
+		if char:match("[^ -~\n\t\a\b\v\r\"\']") then
 			return string.format("\\%03d", string.byte(char))
 		end
 		if(char == "\\") then
@@ -253,8 +253,7 @@ local function isU32(n)
 end
 
 local function toBits(num)
-    -- returns a table of bits, least significant first.
-    local t={} -- will contain the bits
+    local t={}
 	local rest;
     while num>0 do
         rest=math.fmod(num,2)
@@ -271,9 +270,6 @@ local function readonly(obj)
 	return r;
 end
 
--- Standard Base64 (RFC 4648) alphabet + encode/decode.
--- Used by EncryptStrings to pool all encrypted strings into a single
--- base64-encoded table instead of emitting a raw numeric seed per string.
 local B64C = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
 
 local function b64encode(data)
