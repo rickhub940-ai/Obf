@@ -24,7 +24,6 @@ local function escape(str)
 		if c:match("[^ -~\n\t\a\b\v\r\"\']") then
 			return string.format("\\%03d", string.byte(c))
 		end
-
 		if c == "\\" then return "\\\\" end
 		if c == "\n" then return "\\n" end
 		if c == "\r" then return "\\r" end
@@ -34,18 +33,15 @@ local function escape(str)
 		if c == "\v" then return "\\v" end
 		if c == "\"" then return "\\\"" end
 		if c == "'" then return "\\'" end
-
 		return c
 	end)
 end
 
 local function chararray(str)
 	local r = {}
-
 	for i = 1, #str do
 		r[i] = str:sub(i, i)
 	end
-
 	return r
 end
 
@@ -98,11 +94,8 @@ end
 local function shuffle(tb)
 	for i = #tb, 2, -1 do
 		local j = math.random(i)
-
-		tb[i], tb[j] =
-			tb[j], tb[i]
+		tb[i], tb[j] = tb[j], tb[i]
 	end
-
 	return tb
 end
 
@@ -115,9 +108,7 @@ local function shuffle_string(str)
 
 	for i = 1, #t do
 		local j = math.random(i, #t)
-
-		t[i], t[j] =
-			t[j], t[i]
+		t[i], t[j] = t[j], t[i]
 	end
 
 	return table.concat(t)
@@ -128,8 +119,7 @@ local function readDouble(bytes)
 	local mantissa = bytes[2] % 16
 
 	for i = 3, 8 do
-		mantissa =
-			mantissa * 256 + bytes[i]
+		mantissa = mantissa * 256 + bytes[i]
 	end
 
 	if bytes[1] > 127 then
@@ -145,34 +135,25 @@ local function readDouble(bytes)
 	end
 
 	mantissa =
-		(math.ldexp(mantissa, -52) + 1)
-		* sign
+		(math.ldexp(mantissa, -52) + 1) * sign
 
-	return math.ldexp(
-		mantissa,
-		exponent - 1023
-	)
+	return math.ldexp(mantissa, exponent - 1023)
 end
 
 local function writeDouble(num)
-	local bytes =
-		{0,0,0,0,0,0,0,0}
+	local bytes = {0,0,0,0,0,0,0,0}
 
 	if num == 0 then
 		return bytes
 	end
 
 	local anum = math.abs(num)
-
-	local mantissa, exponent =
-		math.frexp(anum)
+	local mantissa, exponent = math.frexp(anum)
 
 	exponent = exponent - 1
 	mantissa = mantissa * 2 - 1
 
-	local sign =
-		num ~= anum and 128 or 0
-
+	local sign = num ~= anum and 128 or 0
 	exponent = exponent + 1023
 
 	bytes[1] =
@@ -181,21 +162,15 @@ local function writeDouble(num)
 	mantissa = mantissa * 16
 
 	local cur = math.floor(mantissa)
-
-	mantissa =
-		mantissa - cur
+	mantissa = mantissa - cur
 
 	bytes[2] =
 		(exponent % 16) * 16 + cur
 
 	for i = 3, 8 do
 		mantissa = mantissa * 256
-
 		cur = math.floor(mantissa)
-
-		mantissa =
-			mantissa - cur
-
+		mantissa = mantissa - cur
 		bytes[i] = cur
 	end
 
@@ -204,12 +179,7 @@ end
 
 local function writeU16(n)
 	if n < 0 or n > 65535 then
-		logger:error(
-			string.format(
-				"u16 out of bounds: %d",
-				n
-			)
-		)
+		logger:error(string.format("u16 out of bounds: %d", n))
 	end
 
 	return {
@@ -227,12 +197,7 @@ end
 
 local function writeU24(n)
 	if n < 0 or n > 16777215 then
-		logger:error(
-			string.format(
-				"u24 out of bounds: %d",
-				n
-			)
-		)
+		logger:error(string.format("u24 out of bounds: %d", n))
 	end
 
 	local r = {}
@@ -254,10 +219,7 @@ local function readU24(a)
 	for i = 0, 2 do
 		n = bit32.bor(
 			n,
-			bit32.lshift(
-				a[i + 1],
-				8 * i
-			)
+			bit32.lshift(a[i + 1], 8 * i)
 		)
 	end
 
@@ -266,12 +228,7 @@ end
 
 local function writeU32(n)
 	if n < 0 or n > 4294967295 then
-		logger:error(
-			string.format(
-				"u32 out of bounds: %d",
-				n
-			)
-		)
+		logger:error(string.format("u32 out of bounds: %d", n))
 	end
 
 	local r = {}
@@ -293,10 +250,7 @@ local function readU32(a)
 	for i = 0, 3 do
 		n = bit32.bor(
 			n,
-			bit32.lshift(
-				a[i + 1],
-				8 * i
-			)
+			bit32.lshift(a[i + 1], 8 * i)
 		)
 	end
 
@@ -307,23 +261,17 @@ local function bytesToString(a)
 	local len = a.n or #a
 
 	if len < MAX_UNPACK_COUNT then
-		return string.char(
-			table.unpack(a)
-		)
+		return string.char(table.unpack(a))
 	end
 
 	local r = ""
-	local over =
-		len % MAX_UNPACK_COUNT
+	local over = len % MAX_UNPACK_COUNT
 
-	for i = 1,
-		(#a - over) / MAX_UNPACK_COUNT
-	do
+	for i = 1, (#a - over) / MAX_UNPACK_COUNT do
 		r = r .. string.char(
 			table.unpack(
 				a,
-				(i - 1) *
-					MAX_UNPACK_COUNT + 1,
+				(i - 1) * MAX_UNPACK_COUNT + 1,
 				i * MAX_UNPACK_COUNT
 			)
 		)
@@ -343,8 +291,7 @@ local function bytesToString(a)
 end
 
 local function isNaN(n)
-	return type(n) == "number"
-		and n ~= n
+	return type(n) == "number" and n ~= n
 end
 
 local function isInt(n)
@@ -352,18 +299,14 @@ local function isInt(n)
 end
 
 local function isU32(n)
-	return n >= 0
-		and n <= 4294967295
-		and isInt(n)
+	return n >= 0 and n <= 4294967295 and isInt(n)
 end
 
 local function toBits(n)
 	local r = {}
 
 	while n > 0 do
-		local x =
-			math.fmod(n, 2)
-
+		local x = math.fmod(n, 2)
 		r[#r + 1] = x
 		n = (n - x) / 2
 	end
@@ -373,25 +316,21 @@ end
 
 local function readonly(obj)
 	local r = newproxy(true)
-
 	getmetatable(r).__index = obj
-
 	return r
 end
 
--- 64-character alphabet
--- Includes special characters.
+-- Standard Base64
 local B64C =
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZ" ..
 	"abcdefghijklmnopqrstuvwxyz" ..
-	"0123456789@#$%^&*"
+	"0123456789+/"
 
 local function b64encode(data)
 	return (
 		(
 			data:gsub(".", function(x)
-				local r = ""
-				local b = x:byte()
+				local r, b = "", x:byte()
 
 				for i = 8, 1, -1 do
 					r = r ..
@@ -404,40 +343,28 @@ local function b64encode(data)
 				end
 
 				return r
-			end)
-			.. "0000"
-		):gsub(
-			"%d%d%d?%d?%d?%d?",
-			function(x)
-				if #x < 6 then
-					return ""
-				end
-
-				local c = 0
-
-				for i = 1, 6 do
-					if x:sub(i, i) == "1" then
-						c = c + 2^(6 - i)
-					end
-				end
-
-				return B64C:sub(
-					c + 1,
-					c + 1
-				)
+			end) .. "0000"
+		):gsub("%d%d%d?%d?%d?%d?", function(x)
+			if #x < 6 then
+				return ""
 			end
-		)
-		.. ({ "", "==", "=" })[
-			#data % 3 + 1
-		]
+
+			local c = 0
+
+			for i = 1, 6 do
+				if x:sub(i, i) == "1" then
+					c = c + 2^(6 - i)
+				end
+			end
+
+			return B64C:sub(c + 1, c + 1)
+		end)
+		.. ({ "", "==", "=" })[#data % 3 + 1]
 	)
 end
 
 local function b64decode(data)
-	data = data:gsub(
-		"[^" .. B64C .. "=]",
-		""
-	)
+	data = data:gsub("[^" .. B64C .. "=]", "")
 
 	return (
 		data:gsub(".", function(x)
@@ -446,13 +373,7 @@ local function b64decode(data)
 			end
 
 			local r = ""
-
-			local f =
-				B64C:find(
-					x,
-					1,
-					true
-				) - 1
+			local f = B64C:find(x, 1, true) - 1
 
 			for i = 6, 1, -1 do
 				r = r ..
@@ -465,8 +386,7 @@ local function b64decode(data)
 			end
 
 			return r
-		end)
-		:gsub(
+		end):gsub(
 			"%d%d%d?%d?%d?%d?%d?%d?",
 			function(x)
 				if #x ~= 8 then
@@ -490,36 +410,26 @@ end
 return {
 	lookupify = lookupify,
 	unlookupify = unlookupify,
-
 	escape = escape,
 	chararray = chararray,
 	keys = keys,
-
 	shuffle = shuffle,
 	shuffle_string = shuffle_string,
-
 	readDouble = readDouble,
 	writeDouble = writeDouble,
-
 	readU16 = readU16,
 	writeU16 = writeU16,
-
 	readU24 = readU24,
 	writeU24 = writeU24,
-
 	readU32 = readU32,
 	writeU32 = writeU32,
-
 	isNaN = isNaN,
 	isU32 = isU32,
 	isInt = isInt,
-
 	utf8char = utf8char,
 	toBits = toBits,
-
 	bytesToString = bytesToString,
 	readonly = readonly,
-
 	B64C = B64C,
 	b64encode = b64encode,
 	b64decode = b64decode,
