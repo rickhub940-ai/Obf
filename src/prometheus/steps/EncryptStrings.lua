@@ -9,6 +9,7 @@ local visitast = require("prometheus.visitast")
 local util = require("prometheus.util")
 
 local AstKind = Ast.AstKind
+
 local EncryptStrings = Step:extend()
 
 EncryptStrings.Description = "Encrypt strings with a chunked string pool."
@@ -19,458 +20,520 @@ function EncryptStrings:init(settings)
 end
 
 function EncryptStrings:CreateEncrypionService()
-	local usedSeeds = {}
+    local usedSeeds = {}
 
-	local secret_key_6 = math.random(0, 63)
-	local secret_key_7 = math.random(0, 127)
-	local secret_key_44 = math.random(0, 17592186044415)
-	local secret_key_8 = math.random(0, 255)
+    local secret_key_6 = math.random(0, 63)
+    local secret_key_7 = math.random(0, 127)
+    local secret_key_44 = math.random(0, 17592186044415)
+    local secret_key_8 = math.random(0, 255)
 
-	local floor = math.floor
+    local floor = math.floor
 
-	local function primitive_root_257(idx)
-		local g, m, d = 1, 128, 2 * idx + 1
+    local function primitive_root_257(idx)
+        local g, m, d = 1, 128, 2 * idx + 1
 
-		repeat
-			g, m, d =
-				g * g * (d >= m and 3 or 1) % 257,
-				m / 2,
-				d % m
-		until m < 1
+        repeat
+            g, m, d =
+                g * g * (d >= m and 3 or 1) % 257,
+                m / 2,
+                d % m
+        until m < 1
 
-		return g
-	end
+        return g
+    end
 
-	local param_mul_8 = primitive_root_257(secret_key_7)
-	local param_mul_45 = secret_key_6 * 4 + 1
-	local param_add_45 = secret_key_44 * 2 + 1
+    local param_mul_8 = primitive_root_257(secret_key_7)
+    local param_mul_45 = secret_key_6 * 4 + 1
+    local param_add_45 = secret_key_44 * 2 + 1
 
-	local state_45 = 0
-	local state_8 = 2
-	local prev_values = {}
+    local state_45 = 0
+    local state_8 = 2
+    local prev_values = {}
 
-	local function set_seed(seed)
-		state_45 = seed % 35184372088832
-		state_8 = seed % 255 + 2
-		prev_values = {}
-	end
+    local function set_seed(seed)
+        state_45 = seed % 35184372088832
+        state_8 = seed % 255 + 2
+        prev_values = {}
+    end
 
-	local function gen_seed()
-		local seed
+    local function gen_seed()
+        local seed
 
-		repeat
-			seed = math.random(0, 35184372088832)
-		until not usedSeeds[seed]
+        repeat
+            seed = math.random(0, 35184372088832)
+        until not usedSeeds[seed]
 
-		usedSeeds[seed] = true
-		return seed
-	end
+        usedSeeds[seed] = true
 
-	local function get_random_32()
-		state_45 =
-			(state_45 * param_mul_45 + param_add_45)
-			% 35184372088832
+        return seed
+    end
 
-		repeat
-			state_8 =
-				state_8 * param_mul_8 % 257
-		until state_8 ~= 1
+    local function get_random_32()
+        state_45 =
+            (state_45 * param_mul_45 + param_add_45)
+            % 35184372088832
 
-		local r = state_8 % 32
+        repeat
+            state_8 =
+                state_8 * param_mul_8 % 257
+        until state_8 ~= 1
 
-		local n =
-			floor(
-				state_45 /
-				2 ^ (13 - (state_8 - r) / 32)
-			)
-			% 2 ^ 32
-			/ 2 ^ r
+        local r = state_8 % 32
 
-		return floor(n % 1 * 2 ^ 32) + floor(n)
-	end
+        local n =
+            floor(
+                state_45 /
+                2 ^ (13 - (state_8 - r) / 32)
+            )
+            % 2 ^ 32
+            / 2 ^ r
 
-	local function get_next_pseudo_random_byte()
-		if #prev_values == 0 then
-			local rnd = get_random_32()
+        return floor(n % 1 * 2 ^ 32) + floor(n)
+    end
 
-			local low_16 = rnd % 65536
-			local high_16 = (rnd - low_16) / 65536
+    local function get_next_pseudo_random_byte()
+        if #prev_values == 0 then
+            local rnd = get_random_32()
 
-			local b1 = low_16 % 256
-			local b2 = (low_16 - b1) / 256
-			local b3 = high_16 % 256
-			local b4 = (high_16 - b3) / 256
+            local low_16 = rnd % 65536
+            local high_16 = (rnd - low_16) / 65536
 
-			prev_values = { b1, b2, b3, b4 }
-		end
+            local b1 = low_16 % 256
+            local b2 = (low_16 - b1) / 256
+            local b3 = high_16 % 256
+            local b4 = (high_16 - b3) / 256
 
-		return table.remove(prev_values)
-	end
+            prev_values = {
+                b1,
+                b2,
+                b3,
+                b4
+            }
+        end
 
-	local function encrypt(str)
-		local seed = gen_seed()
-		set_seed(seed)
+        return table.remove(prev_values)
+    end
 
-		local out = {}
-		local prevVal = secret_key_8
+    local function encrypt(str)
+        local seed = gen_seed()
 
-		for i = 1, #str do
-			local byte = string.byte(str, i)
+        set_seed(seed)
 
-			out[i] =
-				string.char(
-					(byte -
-					(get_next_pseudo_random_byte() + prevVal))
-					% 256
-				)
+        local out = {}
+        local prevVal = secret_key_8
 
-			prevVal = byte
-		end
+        for i = 1, #str do
+            local byte = string.byte(str, i)
 
-		return table.concat(out), seed
-	end
+            out[i] =
+                string.char(
+                    (byte -
+                    (get_next_pseudo_random_byte() + prevVal))
+                    % 256
+                )
 
-	local function packEntry(encryptedPayload, seed)
-		local bytes = {}
-		local s = seed
+            prevVal = byte
+        end
 
-		for i = 1, 6 do
-			bytes[i] = s % 256
-			s = floor(s / 256)
-		end
+        return table.concat(out), seed
+    end
 
-		return util.b64encode(
-			string.char(table.unpack(bytes))
-			.. encryptedPayload
-		)
-	end
+    local function packEntry(encryptedPayload, seed)
+        local bytes = {}
+        local s = seed
 
-	local function splitChunks(str)
-		local chunks = {}
-		local pos = 1
+        for i = 1, 6 do
+            bytes[i] = s % 256
+            s = floor(s / 256)
+        end
 
-		while pos <= #str do
-			local size = math.random(6, 12)
+        return util.b64encode(
+            string.char(table.unpack(bytes))
+            .. encryptedPayload
+        )
+    end
 
-			chunks[#chunks + 1] =
-				str:sub(pos, pos + size - 1)
+    -- แบ่ง Base64 string เป็น chunk
+    local function splitChunks(str)
+        local chunks = {}
 
-			pos = pos + size
-		end
+        -- แต่ละ chunk มีความยาวแบบสุ่ม
+        local pos = 1
 
-		return chunks
-	end
+        while pos <= #str do
+            local size = math.random(6, 12)
 
-	local function genCode(entries)
-		local stringEntries = {}
+            chunks[#chunks + 1] =
+                str:sub(pos, pos + size - 1)
 
-		for i, chunks in ipairs(entries) do
-			local chunkStrings = {}
+            pos = pos + size
+        end
 
-			for _, chunk in ipairs(chunks) do
-				chunkStrings[#chunkStrings + 1] =
-					string.format("%q", chunk)
-			end
+        return chunks
+    end
 
-			stringEntries[i] =
-				"{" .. table.concat(chunkStrings, ",") .. "}"
-		end
+    local function genCode(entries)
+        local stringEntries = {}
 
-		local lmTable =
-			"{" .. table.concat(stringEntries, ",") .. "}"
+        for i, chunks in ipairs(entries) do
+            local chunkStrings = {}
 
-		local code = [[
+            for _, chunk in ipairs(chunks) do
+                chunkStrings[#chunkStrings + 1] =
+                    string.format("%q", chunk)
+            end
+
+            stringEntries[i] =
+                "{" .. table.concat(chunkStrings, ",") .. "}"
+        end
+
+        local lmTable =
+            "{" .. table.concat(stringEntries, ",") .. "}"
+
+        local code = [[
 do
-local floor=math.floor
-local remove=table.remove
-local char=string.char
-local byte=string.byte
-local state_45=0
-local state_8=2
-local prev_values={}
+    local floor = math.floor
+    local remove = table.remove
+    local char = string.char
+    local byte = string.byte
 
-local function nextbyte()
-	if #prev_values==0 then
-		state_45=(state_45*]] ..
-			tostring(param_mul_45) ..
-			[[+]] ..
-			tostring(param_add_45) ..
-			[[)%35184372088832
+    local state_45 = 0
+    local state_8 = 2
+    local charmap = {}
 
-		repeat
-			state_8=state_8*]] ..
-			tostring(param_mul_8) ..
-			[[%257
-		until state_8~=1
+    local nums = {}
 
-		local r=state_8%32
-		local n=floor(
-			state_45/
-			2^(13-(state_8-r)/32)
-		)%2^32/2^r
+    for i = 1, 256 do
+        nums[i] = i
+    end
 
-		local rnd=floor(n%1*2^32)+floor(n)
-		local lo=rnd%65536
-		local hi=(rnd-lo)/65536
+    repeat
+        local idx = math.random(1, #nums)
+        local n = remove(nums, idx)
 
-		local b1=lo%256
-		local b2=(lo-b1)/256
-		local b3=hi%256
-		local b4=(hi-b3)/256
+        charmap[n] = char(n - 1)
+    until #nums == 0
 
-		prev_values={b1,b2,b3,b4}
-	end
+    local prev_values = {}
 
-	return remove(prev_values)
-end
+    local function get_next_pseudo_random_byte()
+        if #prev_values == 0 then
+            state_45 =
+                (state_45 * ]] .. tostring(param_mul_45) .. [[
+                + ]] .. tostring(param_add_45) .. [[)
+                % 35184372088832
 
-local B64C="]] ..
-			util.B64C ..
-			[["
+            repeat
+                state_8 =
+                    state_8 * ]] .. tostring(param_mul_8) .. [[
+                    % 257
+            until state_8 ~= 1
 
-local function b64decode(data)
-	data=data:gsub("[^"..B64C.."=]","")
+            local r = state_8 % 32
 
-	return (
-		data:gsub(".",function(x)
-			if x=="=" then return "" end
+            local n =
+                floor(
+                    state_45 /
+                    2 ^ (13 - (state_8 - r) / 32)
+                )
+                % 2 ^ 32
+                / 2 ^ r
 
-			local r=""
-			local f=B64C:find(x,1,true)-1
+            local rnd =
+                floor(n % 1 * 2 ^ 32) +
+                floor(n)
 
-			for i=6,1,-1 do
-				r=r..
-					(
-						f%2^i-
-						f%2^(i-1)>0
-						and "1"
-						or "0"
-					)
-			end
+            local low_16 = rnd % 65536
+            local high_16 =
+                (rnd - low_16) / 65536
 
-			return r
-		end):gsub(
-			"%d%d%d?%d?%d?%d?%d?%d?",
-			function(x)
-				if #x~=8 then return "" end
+            local b1 = low_16 % 256
+            local b2 = (low_16 - b1) / 256
+            local b3 = high_16 % 256
+            local b4 = (high_16 - b3) / 256
 
-				local c=0
+            prev_values = {
+                b1,
+                b2,
+                b3,
+                b4
+            }
+        end
 
-				for i=1,8 do
-					if x:sub(i,i)=="1" then
-						c=c+2^(8-i)
-					end
-				end
+        return table.remove(prev_values)
+    end
 
-				return char(c)
-			end
-		)
-	)
-end
+    local B64C = "]] .. util.B64C .. [["
 
-local lm=]] ..
-			lmTable ..
-			[[
+    local function b64decode(data)
+        data =
+            data:gsub(
+                '[^' .. B64C .. '=]',
+                ''
+            )
 
-local realStrings={}
+        return (
+            data:gsub('.', function(x)
+                if x == '=' then
+                    return ''
+                end
 
-STRINGS=setmetatable(
-	{},
-	{
-		__index=realStrings,
-		__metatable=nil
-	}
-)
+                local r = ''
+                local f =
+                    B64C:find(x, 1, true) - 1
 
-function DECRYPT(idx)
-	if realStrings[idx] then
-		return idx
-	end
+                for i = 6, 1, -1 do
+                    r = r ..
+                        (
+                            f % 2^i -
+                            f % 2^(i - 1) > 0
+                            and '1'
+                            or '0'
+                        )
+                end
 
-	prev_values={}
+                return r
+            end)
+            :gsub(
+                '%d%d%d?%d?%d?%d?%d?%d?',
+                function(x)
+                    if #x ~= 8 then
+                        return ''
+                    end
 
-	local chunks=lm[idx]
-	local encoded=""
+                    local c = 0
 
-	for _,chunk in ipairs(chunks) do
-		encoded=encoded..chunk
-	end
+                    for i = 1, 8 do
+                        c = c +
+                            (
+                                x:sub(i, i) == '1'
+                                and 2^(8 - i)
+                                or 0
+                            )
+                    end
 
-	local raw=b64decode(encoded)
-	local seed=0
+                    return char(c)
+                end
+            )
+        )
+    end
 
-	for i=6,1,-1 do
-		seed=seed*256+byte(raw,i)
-	end
+    local lm = ]] .. lmTable .. [[
 
-	state_45=seed%35184372088832
-	state_8=seed%255+2
+    local realStrings = {}
 
-	local payload=raw:sub(7)
-	local result={}
-	local prevVal=]] ..
-			tostring(secret_key_8) ..
-			[[
+    STRINGS = setmetatable({}, {
+        __index = realStrings,
+        __metatable = nil
+    })
 
-	for i=1,#payload do
-		prevVal=(
-			byte(payload,i)+
-			nextbyte()+
-			prevVal
-		)%256
+    function DECRYPT(idx)
+        if realStrings[idx] then
+            return idx
+        end
 
-		result[i]=char(prevVal)
-	end
+        prev_values = {}
 
-	realStrings[idx]=table.concat(result)
+        -- รวม chunk ทั้งหมดกลับเป็น Base64
+        local chunks = lm[idx]
+        local encoded = ""
 
-	return idx
-end
+        for _, chunk in ipairs(chunks) do
+            encoded = encoded .. chunk
+        end
+
+        local raw = b64decode(encoded)
+
+        -- seed 6 bytes
+        local seed = 0
+
+        for i = 6, 1, -1 do
+            seed =
+                seed * 256 +
+                byte(raw, i)
+        end
+
+        state_45 =
+            seed % 35184372088832
+
+        state_8 =
+            seed % 255 + 2
+
+        local payload =
+            raw:sub(7)
+
+        local result = {}
+        local prevVal = ]] .. tostring(secret_key_8) .. [[
+
+        for i = 1, #payload do
+            prevVal =
+                (
+                    byte(payload, i)
+                    + get_next_pseudo_random_byte()
+                    + prevVal
+                ) % 256
+
+            result[i] =
+                charmap[prevVal + 1]
+        end
+
+        realStrings[idx] =
+            table.concat(result)
+
+        return idx
+    end
 end]]
 
-		return code
-	end
+        return code
+    end
 
-	return {
-		encrypt = encrypt,
-		packEntry = packEntry,
-		splitChunks = splitChunks,
-		genCode = genCode,
+    return {
+        encrypt = encrypt,
+        packEntry = packEntry,
+        splitChunks = splitChunks,
+        genCode = genCode,
 
-		param_mul_45 = param_mul_45,
-		param_mul_8 = param_mul_8,
-		param_add_45 = param_add_45,
-		secret_key_8 = secret_key_8
-	}
+        param_mul_45 = param_mul_45,
+        param_mul_8 = param_mul_8,
+        param_add_45 = param_add_45,
+        secret_key_8 = secret_key_8
+    }
 end
 
 function EncryptStrings:apply(ast, pipeline)
-	local Encryptor = self:CreateEncrypionService()
-	local entries = {}
+    local Encryptor =
+        self:CreateEncrypionService()
 
-	local scope = ast.body.scope
+    local entries = {}
 
-	local decryptVar = scope:addVariable()
-	local stringsVar = scope:addVariable()
+    local scope = ast.body.scope
 
-	visitast(ast, nil, function(node, data)
-		if node.kind == AstKind.StringExpression then
-			local encrypted, seed =
-				Encryptor.encrypt(node.value)
+    local decryptVar =
+        scope:addVariable()
 
-			local packed =
-				Encryptor.packEntry(
-					encrypted,
-					seed
-				)
+    local stringsVar =
+        scope:addVariable()
 
-			local chunks =
-				Encryptor.splitChunks(packed)
+    visitast(ast, nil, function(node, data)
+        if node.kind == AstKind.StringExpression then
+            local encrypted, seed =
+                Encryptor.encrypt(node.value)
 
-			entries[#entries + 1] = chunks
+            local packed =
+                Encryptor.packEntry(
+                    encrypted,
+                    seed
+                )
 
-			local idx = #entries
+            local chunks =
+                Encryptor.splitChunks(packed)
 
-			data.scope:addReferenceToHigherScope(
-				scope,
-				stringsVar
-			)
+            entries[#entries + 1] =
+                chunks
 
-			data.scope:addReferenceToHigherScope(
-				scope,
-				decryptVar
-			)
+            local idx = #entries
 
-			return Ast.IndexExpression(
-				Ast.VariableExpression(
-					scope,
-					stringsVar
-				),
-				Ast.FunctionCallExpression(
-					Ast.VariableExpression(
-						scope,
-						decryptVar
-					),
-					{
-						Ast.NumberExpression(idx)
-					}
-				)
-			)
-		end
-	end)
+            data.scope:addReferenceToHigherScope(
+                scope,
+                stringsVar
+            )
 
-	local code = Encryptor.genCode(entries)
+            data.scope:addReferenceToHigherScope(
+                scope,
+                decryptVar
+            )
 
-	local newAst =
-		Parser:new({
-			LuaVersion = Enums.LuaVersion.Lua51
-		}):parse(code)
+            return Ast.IndexExpression(
+                Ast.VariableExpression(
+                    scope,
+                    stringsVar
+                ),
+                Ast.FunctionCallExpression(
+                    Ast.VariableExpression(
+                        scope,
+                        decryptVar
+                    ),
+                    {
+                        Ast.NumberExpression(idx)
+                    }
+                )
+            )
+        end
+    end)
 
-	local doStat =
-		newAst.body.statements[1]
+    local code =
+        Encryptor.genCode(entries)
 
-	doStat.body.scope:setParent(
-		ast.body.scope
-	)
+    local newAst =
+        Parser:new({
+            LuaVersion = Enums.LuaVersion.Lua51
+        }):parse(code)
 
-	visitast(newAst, nil, function(node, data)
-		if node.kind == AstKind.FunctionDeclaration then
-			if node.scope:getVariableName(node.id) == "DECRYPT" then
-				data.scope:removeReferenceToHigherScope(
-					node.scope,
-					node.id
-				)
+    local doStat =
+        newAst.body.statements[1]
 
-				data.scope:addReferenceToHigherScope(
-					scope,
-					decryptVar
-				)
+    doStat.body.scope:setParent(
+        ast.body.scope
+    )
 
-				node.scope = scope
-				node.id = decryptVar
-			end
-		end
+    visitast(newAst, nil, function(node, data)
+        if node.kind == AstKind.FunctionDeclaration then
+            if node.scope:getVariableName(node.id) == "DECRYPT" then
+                data.scope:removeReferenceToHigherScope(
+                    node.scope,
+                    node.id
+                )
 
-		if node.kind == AstKind.AssignmentVariable
-		or node.kind == AstKind.VariableExpression then
+                data.scope:addReferenceToHigherScope(
+                    scope,
+                    decryptVar
+                )
 
-			if node.scope:getVariableName(node.id) == "STRINGS" then
-				data.scope:removeReferenceToHigherScope(
-					node.scope,
-					node.id
-				)
+                node.scope = scope
+                node.id = decryptVar
+            end
+        end
 
-				data.scope:addReferenceToHigherScope(
-					scope,
-					stringsVar
-				)
+        if node.kind == AstKind.AssignmentVariable
+        or node.kind == AstKind.VariableExpression then
 
-				node.scope = scope
-				node.id = stringsVar
-			end
-		end
-	end)
+            if node.scope:getVariableName(node.id) == "STRINGS" then
+                data.scope:removeReferenceToHigherScope(
+                    node.scope,
+                    node.id
+                )
 
-	table.insert(
-		ast.body.statements,
-		1,
-		doStat
-	)
+                data.scope:addReferenceToHigherScope(
+                    scope,
+                    stringsVar
+                )
 
-	table.insert(
-		ast.body.statements,
-		1,
-		Ast.LocalVariableDeclaration(
-			scope,
-			util.shuffle{
-				decryptVar,
-				stringsVar
-			},
-			{}
-		)
-	)
+                node.scope = scope
+                node.id = stringsVar
+            end
+        end
+    end)
 
-	return ast
+    table.insert(
+        ast.body.statements,
+        1,
+        doStat
+    )
+
+    table.insert(
+        ast.body.statements,
+        1,
+        Ast.LocalVariableDeclaration(
+            scope,
+            util.shuffle{
+                decryptVar,
+                stringsVar
+            },
+            {}
+        )
+    )
+
+    return ast
 end
 
 return EncryptStrings
