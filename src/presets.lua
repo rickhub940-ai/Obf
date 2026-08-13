@@ -96,7 +96,7 @@ return {
     ["Strong"] = {
         LuaVersion = "Lua51";
         VarNamePrefix = "";
-        NameGenerator = "MangledShuffled";
+        NameGenerator = "BinaryStyle",
         PrettyPrint = false;
         Seed = 0;
 
