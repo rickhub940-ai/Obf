@@ -44,7 +44,7 @@ local function prepare(ast)
     );
 
     -- Warm up the random generator.
-    for i = 1, 30 do
+    for i = 1, 10 do
         math.random();
     end
 end
