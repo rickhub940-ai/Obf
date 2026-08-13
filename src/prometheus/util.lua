@@ -5,17 +5,13 @@ local MAX_UNPACK_COUNT = 195
 
 local function lookupify(tb)
 	local r = {}
-	for _, v in ipairs(tb) do
-		r[v] = true
-	end
+	for _, v in ipairs(tb) do r[v] = true end
 	return r
 end
 
 local function unlookupify(tb)
 	local r = {}
-	for v in pairs(tb) do
-		r[#r + 1] = v
-	end
+	for v in pairs(tb) do r[#r + 1] = v end
 	return r
 end
 
@@ -46,14 +42,11 @@ local function chararray(str)
 end
 
 local function keys(tb)
-	local r = {}
-	local n = 0
-
+	local r, n = {}, 0
 	for k in pairs(tb) do
 		n = n + 1
 		r[n] = k
 	end
-
 	return r
 end
 
@@ -122,17 +115,13 @@ local function readDouble(bytes)
 		mantissa = mantissa * 256 + bytes[i]
 	end
 
-	if bytes[1] > 127 then
-		sign = -1
-	end
+	if bytes[1] > 127 then sign = -1 end
 
 	local exponent =
 		(bytes[1] % 128) * 16 +
 		math.floor(bytes[2] / 16)
 
-	if exponent == 0 then
-		return 0
-	end
+	if exponent == 0 then return 0 end
 
 	mantissa =
 		(math.ldexp(mantissa, -52) + 1) * sign
@@ -143,9 +132,7 @@ end
 local function writeDouble(num)
 	local bytes = {0,0,0,0,0,0,0,0}
 
-	if num == 0 then
-		return bytes
-	end
+	if num == 0 then return bytes end
 
 	local anum = math.abs(num)
 	local mantissa, exponent = math.frexp(anum)
@@ -320,7 +307,6 @@ local function readonly(obj)
 	return r
 end
 
--- Standard Base64
 local B64C =
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZ" ..
 	"abcdefghijklmnopqrstuvwxyz" ..
@@ -345,9 +331,7 @@ local function b64encode(data)
 				return r
 			end) .. "0000"
 		):gsub("%d%d%d?%d?%d?%d?", function(x)
-			if #x < 6 then
-				return ""
-			end
+			if #x < 6 then return "" end
 
 			local c = 0
 
@@ -364,16 +348,18 @@ local function b64encode(data)
 end
 
 local function b64decode(data)
-	data = data:gsub("[^" .. B64C .. "=]", "")
+	data = data:gsub(
+		"[^" .. B64C .. "=]",
+		""
+	)
 
 	return (
 		data:gsub(".", function(x)
-			if x == "=" then
-				return ""
-			end
+			if x == "=" then return "" end
 
 			local r = ""
-			local f = B64C:find(x, 1, true) - 1
+			local f =
+				B64C:find(x, 1, true) - 1
 
 			for i = 6, 1, -1 do
 				r = r ..
@@ -389,9 +375,7 @@ local function b64decode(data)
 		end):gsub(
 			"%d%d%d?%d?%d?%d?%d?%d?",
 			function(x)
-				if #x ~= 8 then
-					return ""
-				end
+				if #x ~= 8 then return "" end
 
 				local c = 0
 
