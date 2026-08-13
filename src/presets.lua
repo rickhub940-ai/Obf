@@ -44,7 +44,7 @@ return {
         }
     };
 
-    ["Medium"] = {
+    ["Strong"] = {
         LuaVersion = "Lua51";
         VarNamePrefix = "";
         NameGenerator = "MangledShuffled";
@@ -93,7 +93,7 @@ return {
         }
     };
 
-    ["Strong"] = {
+    ["Medium"] = {
         LuaVersion = "Lua51";
         VarNamePrefix = "";
         NameGenerator = "MangledShuffled",
