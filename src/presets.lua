@@ -110,7 +110,7 @@ return {
             },
         }
     };
-    ["Strong"] = {
+    ["mua"] = {
         -- The default LuaVersion is Lua51
         LuaVersion = "Lua51";
         -- For minifying no VarNamePrefix is applied
