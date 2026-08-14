@@ -46,7 +46,7 @@ return {
 
     ["Strong"] = {
         LuaVersion = "Lua51";
-        VarNamePrefix = "";
+        VarNamePrefix = "AntiTamper";
         NameGenerator = "MangledShuffled";
         PrettyPrint = false;
         Seed = 0;
