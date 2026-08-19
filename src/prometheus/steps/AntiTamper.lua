@@ -7,7 +7,7 @@ local Enums = require("prometheus.enums");
 local logger = require("logger");
 
 local AntiTamper = Step:extend();
-AntiTamper.Description = "Comprehensive Anti-Tamper, Anti-Hook, Anti-Aetheris, and Line Hiding Step.";
+AntiTamper.Description = "Anti Aetheris v0.2 Environment Check Step.";
 AntiTamper.Name = "Anti Tamper";
 
 AntiTamper.SettingsDescriptor = {}
@@ -24,98 +24,104 @@ function AntiTamper:apply(ast, pipeline)
 
     local code = [[
     (function(...)
-        -- 1. Crash Loop (Memory Overhead + Heavy CPU Loop)
+        -- ฟังก์ชันจัดการเมื่อตรวจพบความผิดปกติ
         local function RunCrashFunction()
-            local mem = {}
-            for i = 1, 300000 do
-                mem[i] = string.rep("\255", 1000)
-            end
-            local val = 0
+            local count = 0
             for i = 1, 400000000 do
-                val = val + math.sin(i)
+                count = count + 1
             end
-            error("test anti tamper", 0)
+            error("Anti Aetheris v0.2 >:3", 0)
         end
 
         local function RunCrashFunctionIndirect()
             return RunCrashFunction()
         end
 
-        -- 2. Anti getfenv & _G Checks
-        local function CheckEnvironmentIntegrity()
-            local success, env = pcall(getfenv, 1)
-            if not success or type(env) ~= "table" then
-                RunCrashFunctionIndirect()
-            end
+        ---------------------------------------------------------
+        -- Anti Aetheris v0.2 Validation Sequence
+        ---------------------------------------------------------
+        local function RunAntiAetheris()
+            local ok, err = pcall(function()
+                -- 1. Get Workspace
+                local workspace = game:GetService("Workspace")
+                if not workspace then RunCrashFunctionIndirect() end
 
-            if env.getfenv ~= getfenv or env._G ~= _G then
-                RunCrashFunctionIndirect()
-            end
+                -- 2. New BindableEvent Test
+                local bindable = Instance.new("BindableEvent")
+                if not bindable then RunCrashFunctionIndirect() end
+                bindable:Destroy()
 
-            if type(_G) ~= "table" or getmetatable(_G) ~= nil then
-                RunCrashFunctionIndirect()
-            end
-        end
-
-        -- 3. Anti-Hook Checks
-        local function CheckHookIntegrity()
-            local targetFuncs = { pcall, xpcall, getfenv, setfenv, type, pairs, next, error, string.byte, bit32.bxor }
-            for _, fn in ipairs(targetFuncs) do
-                if type(fn) ~= "function" then
+                -- 3. RunService Function Validation & Call Checks
+                local runService = game:GetService("RunService")
+                if type(runService.IsStudio) ~= "function" or 
+                   type(runService.IsClient) ~= "function" or 
+                   type(runService.IsServer) ~= "function" then
                     RunCrashFunctionIndirect()
                 end
 
-                local isC = iscclosure and iscclosure(fn)
-                local info = debug and debug.getinfo and debug.getinfo(fn)
-                if info and info.what == "Lua" and not isC then
-                    RunCrashFunctionIndirect()
-                end
-            end
-        end
+                local isStudioOk, isStudio = pcall(function() return runService:IsStudio() end)
+                local isClientOk, isClient = pcall(function() return runService:IsClient() end)
+                local isServerOk, isServer = pcall(function() return runService:IsServer() end)
 
-        -- 4. Anti Aetheris v0.2 Checks
-        local function RunAetherisChecks()
-            local success = pcall(function()
-                local RunService = game:GetService("RunService")
-                if type(RunService.IsStudio) ~= "function" or type(RunService.IsClient) ~= "function" or type(RunService.IsServer) ~= "function" then
+                if not isStudioOk or not isClientOk or not isServerOk then
                     RunCrashFunctionIndirect()
                 end
 
-                if Enum.HumanoidStateType.FromName("Running") == nil or Enum.HumanoidStateType.FromValue(0) == nil then
+                -- 4. Enum HumanoidStateType Validation
+                local enumName = Enum.HumanoidStateType.FromName("X") -- ตั้งใจส่งค่า "X" เพื่อเช็คnil
+                if enumName ~= nil then
                     RunCrashFunctionIndirect()
                 end
 
-                local testFolder = Instance.new("Folder")
-                testFolder.Name = "AntiEnvFolder"
-
-                if not testFolder:IsA("Folder") or not testFolder:IsA("Instance") or testFolder:IsA("Part") then
-                    testFolder:Destroy()
+                local enumVal = Enum.HumanoidStateType.FromValue(0)
+                if not enumVal then
                     RunCrashFunctionIndirect()
                 end
 
-                testFolder:SetAttribute("x", 17)
-                if testFolder:GetAttribute("x") ~= 17 then
-                    testFolder:Destroy()
+                -- 5. AntiEnvFolder Creation, IsA, Attributes, and Children Checks
+                local folder = Instance.new("Folder")
+                folder.Name = "AntiEnvFolder"
+
+                if not folder:IsA("Folder") or not folder:IsA("Instance") or folder:IsA("Part") then
+                    folder:Destroy()
                     RunCrashFunctionIndirect()
                 end
 
-                if type(testFolder:GetChildren()) ~= "table" then
-                    testFolder:Destroy()
+                folder:SetAttribute("x", 17)
+                
+                -- Check Destroy & GetAttribute
+                local attrValue = folder:GetAttribute("x")
+                if attrValue ~= 17 then
+                    folder:Destroy()
                     RunCrashFunctionIndirect()
                 end
 
-                testFolder:Destroy()
+                local children = folder:GetChildren()
+                if type(children) ~= "table" then
+                    folder:Destroy()
+                    RunCrashFunctionIndirect()
+                end
+
+                folder:Destroy()
+
+                -- 6. Essential Services GetService Checks
+                local players = game:GetService("Players")
+                local coreGui = game:GetService("CoreGui")
+                local userInputService = game:GetService("UserInputService")
+                local replicatedStorage = game:GetService("ReplicatedStorage")
+
+                if not players or not coreGui or not userInputService or not replicatedStorage then
+                    RunCrashFunctionIndirect()
+                end
             end)
 
-            if not success then
+            if not ok then
                 RunCrashFunctionIndirect()
             end
         end
 
-        -- Execute Core Anti-Tamper Validations
-        CheckEnvironmentIntegrity()
-        CheckHookIntegrity()
-        RunAetherisChecks()
+        -- เรียกใช้การตรวจสอบ Anti Aetheris v0.2
+        RunAntiAetheris()
     end)(...)
     ]];
 
