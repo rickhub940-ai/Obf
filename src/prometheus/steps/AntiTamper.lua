@@ -1,4 +1,4 @@
-                  local Step = require("prometheus.step");
+local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
 local Scope = require("prometheus.scope");
 local RandomStrings = require("prometheus.randomStrings");
