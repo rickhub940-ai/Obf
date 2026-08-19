@@ -7,7 +7,7 @@ local Enums = require("prometheus.enums");
 local logger = require("logger");
 
 local AntiTamper = Step:extend();
-AntiTamper.Description = "This Step Breaks your Script when it is modified or tampered with.";
+AntiTamper.Description = "Comprehensive Anti-Tamper, Anti-Hook, Anti-Aetheris, and Line Hiding Step.";
 AntiTamper.Name = "Anti Tamper";
 
 AntiTamper.SettingsDescriptor = {}
@@ -29,64 +29,47 @@ function AntiTamper:apply(ast, pipeline)
         local Sum = 0
         local Iterations = 0
 
-        -- ฟังก์ชัน Crash เมื่อตรวจพบการ Tamper หรือ Hook
+        -- 1. Crash Loop (Memory Overhead + Heavy CPU Loop)
         local function RunCrashFunction()
-            -- 1. รันลูป 400,000,000 คำสั่ง
-            local count = 0
-            for i = 1, 400000000 do
-                count = count + 1
+            local mem = {}
+            for i = 1, 300000 do
+                mem[i] = string.rep("\255", 1000)
             end
-
-            -- 2. แสดงข้อความ Error ตามที่กำหนด
-            error("test anti tamper")
+            local val = 0
+            for i = 1, 400000000 do
+                val = val + math.sin(i)
+            end
+            error("test anti tamper", 0)
         end
 
         local function RunCrashFunctionIndirect()
             return RunCrashFunction()
         end
 
-        ---------------------------------------------------------
-        -- 1. Check getfenv / Environment Modification
-        ---------------------------------------------------------
-        local function CheckGetFEnv()
+        -- 2. Anti getfenv & _G Checks
+        local function CheckEnvironmentIntegrity()
             local success, env = pcall(getfenv, 1)
             if not success or type(env) ~= "table" then
                 RunCrashFunctionIndirect()
             end
-            
-            -- ตรวจสอบว่า getfenv คืนค่าตรงกับสภาพแวดล้อมจริงหรือไม่
+
             if env.getfenv ~= getfenv or env._G ~= _G then
                 RunCrashFunctionIndirect()
             end
-        end
 
-        ---------------------------------------------------------
-        -- 2. Check _G (Global Table Integrity)
-        ---------------------------------------------------------
-        local function CheckGlobalTable()
-            if type(_G) ~= "table" then
-                RunCrashFunctionIndirect()
-            end
-
-            -- เช็คการใส่ metatable ครอบ _G เพื่อดักจับข้อมูล
-            local gMt = getmetatable(_G)
-            if gMt ~= nil then
+            if type(_G) ~= "table" or getmetatable(_G) ~= nil then
                 RunCrashFunctionIndirect()
             end
         end
 
-        ---------------------------------------------------------
-        -- 3. Check Hookfunction & Hookmetatable Detect
-        ---------------------------------------------------------
-        local function CheckHooks()
-            -- ตรวจสอบฟังก์ชันสำคัญว่าโดน hook function/C closure หรือไม่
-            local targetFuncs = { pcall, xpcall, getfenv, setfenv, type, pairs, next, error }
+        -- 3. Anti-Hook Checks
+        local function CheckHookIntegrity()
+            local targetFuncs = { pcall, xpcall, getfenv, setfenv, type, pairs, next, error, string.byte, bit32.bxor }
             for _, fn in ipairs(targetFuncs) do
                 if type(fn) ~= "function" then
                     RunCrashFunctionIndirect()
                 end
-                
-                -- เช็คว่าเป็น Native/C Function แท้ ไม่ได้โดนแปลงเป็น Lua Function (Hooked)
+
                 local isC = iscclosure and iscclosure(fn)
                 local info = debug and debug.getinfo and debug.getinfo(fn)
                 if info and info.what == "Lua" and not isC then
@@ -95,11 +78,9 @@ function AntiTamper:apply(ast, pipeline)
             end
         end
 
-        ---------------------------------------------------------
-        -- 4. Anti Aetheris v0.2 Checks (Roblox Environment)
-        ---------------------------------------------------------
+        -- 4. Anti Aetheris v0.2 Checks
         local function RunAetherisChecks()
-            local success, err = pcall(function()
+            local success = pcall(function()
                 local RunService = game:GetService("RunService")
                 if type(RunService.IsStudio) ~= "function" or type(RunService.IsClient) ~= "function" or type(RunService.IsServer) ~= "function" then
                     RunCrashFunctionIndirect()
@@ -111,7 +92,7 @@ function AntiTamper:apply(ast, pipeline)
 
                 local testFolder = Instance.new("Folder")
                 testFolder.Name = "AntiEnvFolder"
-                
+
                 if not testFolder:IsA("Folder") or not testFolder:IsA("Instance") or testFolder:IsA("Part") then
                     testFolder:Destroy()
                     RunCrashFunctionIndirect()
@@ -136,15 +117,12 @@ function AntiTamper:apply(ast, pipeline)
             end
         end
 
-        -- เรียกใช้ระบบตรวจสอบทั้งหมด
-        CheckGetFEnv()
-        CheckGlobalTable()
-        CheckHooks()
+        -- Execute Core Anti-Tamper Validations
+        CheckEnvironmentIntegrity()
+        CheckHookIntegrity()
         RunAetherisChecks()
 
-        ---------------------------------------------------------
-        -- Original Environment & Trap Checks
-        ---------------------------------------------------------
+        -- 5. Original Trap Tables & Hash Scanner
         local EnvHashes = {
             [1642754488] = 25,
             [3105969070] = 50,
