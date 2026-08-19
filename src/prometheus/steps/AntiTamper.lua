@@ -221,10 +221,23 @@ function AntiTamper:apply(ast, pipeline)
     end)(...)
     ]];
 
-    local parsed = Parser:new({LuaVersion = Enums.LuaVersion.Lua51}):parse(code);
-    local doStat = parsed.body.statements[1];
-    doStat.body.scope:setParent(ast.body.scope);
-    table.insert(ast.body.statements, 1, doStat);
+    -- Parse โค้ด AntiTamper เข้าโครงสร้าง Prometheus AST
+    local parsed = Parser:new({LuaVersion = pipeline.LuaVersion or Enums.LuaVersion.Lua51}):parse(code);
+
+    -- ดึง TopNode -> Block -> Statements ตามโครงสร้างของ Prometheus AST
+    local statements = parsed.body.statements;
+    
+    -- นำ Statement ของ AntiTamper แทรกไว้บนสุดของ AST หลัก
+    for i = #statements, 1, -1 do
+        local stat = statements[i];
+        
+        -- ถ้าเป็น Function Call Statement ให้ย้าย Scope เข้ากับ ast หลัก
+        if stat.body and stat.body.scope then
+            stat.body.scope:setParent(ast.body.scope);
+        end
+        
+        table.insert(ast.body.statements, 1, stat);
+    end
 
     return ast;
 end
