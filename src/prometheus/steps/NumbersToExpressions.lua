@@ -34,8 +34,13 @@ NumbersToExpressions.SettingsDescriptor = {
 }
 
 function NumbersToExpressions:init(settings)
+	settings = settings or {}
+    self.Treshold = settings.Treshold or 1
+    self.InternalTreshold = settings.InternalTreshold or 0.2
+    
 	self.ExpressionGenerators = {
-        function(val, depth) -- Addition
+        -- Addition
+        function(val, depth)
             local val2 = math.random(-2^20, 2^20);
             local diff = val - val2;
             if tonumber(tostring(diff)) + tonumber(tostring(val2)) ~= val then
@@ -43,7 +48,8 @@ function NumbersToExpressions:init(settings)
             end
             return Ast.AddExpression(self:CreateNumberExpression(val2, depth), self:CreateNumberExpression(diff, depth), false);
         end, 
-        function(val, depth) -- Subtraction
+        -- Subtraction
+        function(val, depth)
             local val2 = math.random(-2^20, 2^20);
             local diff = val + val2;
             if tonumber(tostring(diff)) - tonumber(tostring(val2)) ~= val then
@@ -51,9 +57,7 @@ function NumbersToExpressions:init(settings)
             end
             return Ast.SubExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
         end,
-        -- ============================================
-        -- ใหม่: Multiplication
-        -- ============================================
+        -- Multiplication
         function(val, depth)
             if val == 0 then return false end
             local val2 = math.random(1, 2^10);
@@ -64,9 +68,7 @@ function NumbersToExpressions:init(settings)
             end
             return Ast.MulExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
         end,
-        -- ============================================
-        -- ใหม่: Division
-        -- ============================================
+        -- Division
         function(val, depth)
             if val == 0 then return false end
             local val2 = math.random(1, 2^10);
@@ -76,9 +78,7 @@ function NumbersToExpressions:init(settings)
             end
             return Ast.DivExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
         end,
-        -- ============================================
-        -- ใหม่: cos(0) = 1
-        -- ============================================
+        -- cos(0) = 1
         function(val, depth)
             if val == 1 then
                 return Ast.CallExpression(
@@ -88,9 +88,7 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        -- ============================================
-        -- ใหม่: sin(0) = 0
-        -- ============================================
+        -- sin(0) = 0
         function(val, depth)
             if val == 0 then
                 return Ast.CallExpression(
@@ -100,37 +98,7 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        -- ============================================
-        -- ใหม่: sin(π/2) = 1
-        -- ============================================
-        function(val, depth)
-            if val == 1 then
-                return Ast.CallExpression(
-                    Ast.VariableExpression(Ast.Identifier("math.sin")),
-                    { Ast.DivExpression(
-                        Ast.VariableExpression(Ast.Identifier("math.pi")),
-                        Ast.NumberExpression(2),
-                        false
-                    )}
-                )
-            end
-            return false
-        end,
-        -- ============================================
-        -- ใหม่: cos(π) = -1
-        -- ============================================
-        function(val, depth)
-            if val == -1 then
-                return Ast.CallExpression(
-                    Ast.VariableExpression(Ast.Identifier("math.cos")),
-                    { Ast.VariableExpression(Ast.Identifier("math.pi")) }
-                )
-            end
-            return false
-        end,
-        -- ============================================
-        -- ใหม่: exp(0) = 1
-        -- ============================================
+        -- exp(0) = 1
         function(val, depth)
             if val == 1 then
                 return Ast.CallExpression(
@@ -140,9 +108,7 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        -- ============================================
-        -- ใหม่: log(1) = 0
-        -- ============================================
+        -- log(1) = 0
         function(val, depth)
             if val == 0 then
                 return Ast.CallExpression(
@@ -152,40 +118,7 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        -- ============================================
-        -- ใหม่: a^0 = 1
-        -- ============================================
-        function(val, depth)
-            if val == 1 then
-                local base = math.random(1, 100)
-                return Ast.CallExpression(
-                    Ast.VariableExpression(Ast.Identifier("math.pow")),
-                    { Ast.NumberExpression(base), Ast.NumberExpression(0) }
-                )
-            end
-            return false
-        end,
-        -- ============================================
-        -- ใหม่: sqrt(x^2) = x
-        -- ============================================
-        function(val, depth)
-            if val >= 0 then
-                local x = math.sqrt(val)
-                if x == math.floor(x) and x <= 2^10 and x > 0 then
-                    local sq = x * x
-                    if tonumber(tostring(sq)) == val then
-                        return Ast.CallExpression(
-                            Ast.VariableExpression(Ast.Identifier("math.sqrt")),
-                            { self:CreateNumberExpression(sq, depth + 1) }
-                        )
-                    end
-                end
-            end
-            return false
-        end,
-        -- ============================================
-        -- ใหม่: (a + b) / c
-        -- ============================================
+        -- (a + b) / c
         function(val, depth)
             if val == 0 then return false end
             local c = math.random(2, 100)
@@ -204,9 +137,7 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        -- ============================================
-        -- ใหม่: a * (b + c)
-        -- ============================================
+        -- a * (b + c)
         function(val, depth)
             if val == 0 then return false end
             local factors = {}
@@ -230,9 +161,7 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        -- ============================================
-        -- ใหม่: x * 10^y (Scientific Notation)
-        -- ============================================
+        -- x * 10^y (Scientific Notation)
         function(val, depth)
             if val == 0 then return false end
             local mantissa = val
@@ -255,35 +184,6 @@ function NumbersToExpressions:init(settings)
                     ),
                     false
                 )
-            end
-            return false
-        end,
-        -- ============================================
-        -- ใหม่: (x + y) * (x - y) = x^2 - y^2
-        -- ============================================
-        function(val, depth)
-            if val >= 0 then
-                local x = math.floor(math.sqrt(val))
-                if x * x == val and x > 1 then
-                    local y = math.random(1, x - 1)
-                    local x2 = x * x
-                    local y2 = y * y
-                    if x2 - y2 == val then
-                        return Ast.MulExpression(
-                            Ast.AddExpression(
-                                self:CreateNumberExpression(x, depth + 1),
-                                self:CreateNumberExpression(y, depth + 1),
-                                false
-                            ),
-                            Ast.SubExpression(
-                                self:CreateNumberExpression(x, depth + 1),
-                                self:CreateNumberExpression(y, depth + 1),
-                                false
-                            ),
-                            false
-                        )
-                    end
-                end
             end
             return false
         end
