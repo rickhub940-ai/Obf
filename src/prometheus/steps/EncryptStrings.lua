@@ -1,5 +1,5 @@
 -- EncryptStrings.lua
--- Prometheus - Chunked String Pool (IMPROVED v2)
+-- Prometheus - Chunked String Pool
 
 local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
@@ -218,196 +218,204 @@ function EncryptStrings:CreateEncrypionService()
         local lmTable =
             "{" .. table.concat(stringEntries, ",") .. "}"
 
-        local code = "do\n" ..
-            "    local " .. rn.floor .. " = math.floor\n" ..
-            "    local " .. rn.remove .. " = table.remove\n" ..
-            "    local " .. rn.char .. " = string.char\n" ..
-            "    local " .. rn.byte .. " = string.byte\n" ..
-            "\n" ..
-            "    local " .. rn.state_45 .. " = 0\n" ..
-            "    local " .. rn.state_8 .. " = 2\n" ..
-            "    local " .. rn.charmap .. " = {}\n" ..
-            "\n" ..
-            "    local " .. rn.nums .. " = {}\n" ..
-            "\n" ..
-            "    for " .. rn.j1 .. " = 1, 256 do\n" ..
-            "        " .. rn.nums .. "[" .. rn.j1 .. "] = " .. rn.j1 .. "\n" ..
-            "    end\n" ..
-            "\n" ..
-            "    repeat\n" ..
-            "        local " .. rn.j2 .. " = math.random(1, #" .. rn.nums .. ")\n" ..
-            "        local " .. rn.j3 .. " = " .. rn.remove .. "(" .. rn.nums .. ", " .. rn.j2 .. ")\n" ..
-            "\n" ..
-            "        " .. rn.charmap .. "[" .. rn.j3 .. "] = " .. rn.char .. "(" .. rn.j3 .. " - 1)\n" ..
-            "    until #" .. rn.nums .. " == 0\n" ..
-            "\n" ..
-            "    local " .. rn.prev_values .. " = {}\n" ..
-            "\n" ..
-            "    local function " .. rn.j4 .. "()\n" ..
-            "        if #" .. rn.prev_values .. " == 0 then\n" ..
-            "            " .. rn.state_45 .. " =\n" ..
-            "                (" .. rn.state_45 .. " * " .. tostring(param_mul_45) .. "\n" ..
-            "                + " .. tostring(param_add_45) .. ")\n" ..
-            "                % 35184372088832\n" ..
-            "\n" ..
-            "            repeat\n" ..
-            "                " .. rn.state_8 .. " =\n" ..
-            "                    " .. rn.state_8 .. " * " .. tostring(param_mul_8) .. "\n" ..
-            "                    % 257\n" ..
-            "            until " .. rn.state_8 .. " ~= 1\n" ..
-            "\n" ..
-            "            local " .. rn.j5 .. " = " .. rn.state_8 .. " % 32\n" ..
-            "\n" ..
-            "            local " .. rn.j6 .. " =\n" ..
-            "                " .. rn.floor .. "(\n" ..
-            "                    " .. rn.state_45 .. " /\n" ..
-            "                    2 ^ (13 - (" .. rn.state_8 .. " - " .. rn.j5 .. ") / 32)\n" ..
-            "                )\n" ..
-            "                % 2 ^ 32\n" ..
-            "                / 2 ^ " .. rn.j5 .. "\n" ..
-            "\n" ..
-            "            local " .. rn.j7 .. " =\n" ..
-            "                " .. rn.floor .. "(" .. rn.j6 .. " % 1 * 2 ^ 32) +\n" ..
-            "                " .. rn.floor .. "(" .. rn.j6 .. ")\n" ..
-            "\n" ..
-            "            local " .. rn.j8 .. " = " .. rn.j7 .. " % 65536\n" ..
-            "            local " .. rn.j9 .. " =\n" ..
-            "                (" .. rn.j7 .. " - " .. rn.j8 .. ") / 65536\n" ..
-            "\n" ..
-            "            local " .. rn.j10 .. " = " .. rn.j8 .. " % 256\n" ..
-            "            local " .. rn.j1 .. " = (" .. rn.j8 .. " - " .. rn.j10 .. ") / 256\n" ..
-            "            local " .. rn.j2 .. " = " .. rn.j9 .. " % 256\n" ..
-            "            local " .. rn.j3 .. " = (" .. rn.j9 .. " - " .. rn.j2 .. ") / 256\n" ..
-            "\n" ..
-            "            " .. rn.prev_values .. " = {\n" ..
-            "                " .. rn.j10 .. ",\n" ..
-            "                " .. rn.j1 .. ",\n" ..
-            "                " .. rn.j2 .. ",\n" ..
-            "                " .. rn.j3 .. "\n" ..
-            "            }\n" ..
-            "        end\n" ..
-            "\n" ..
-            "        return " .. rn.remove .. "(" .. rn.prev_values .. ")\n" ..
-            "    end\n" ..
-            "\n" ..
-            "    local " .. rn.B64C .. " = \"" .. util.B64C .. "\"\n" ..
-            "\n" ..
-            "    local function " .. rn.b64decode .. "(" .. rn.j5 .. ")\n" ..
-            "        " .. rn.j5 .. " =\n" ..
-            "            " .. rn.j5 .. ":gsub(\n" ..
-            "                '[^' .. " .. rn.B64C .. " .. '=]',\n" ..
-            "                ''\n" ..
-            "            )\n" ..
-            "\n" ..
-            "        return (\n" ..
-            "            " .. rn.j5 .. ":gsub('.', function(" .. rn.j6 .. ")\n" ..
-            "                if " .. rn.j6 .. " == '=' then\n" ..
-            "                    return ''\n" ..
-            "                end\n" ..
-            "\n" ..
-            "                local " .. rn.j7 .. " = ''\n" ..
-            "                local " .. rn.j8 .. " =\n" ..
-            "                    " .. rn.B64C .. ":find(" .. rn.j6 .. ", 1, true) - 1\n" ..
-            "\n" ..
-            "                for " .. rn.j9 .. " = 6, 1, -1 do\n" ..
-            "                    " .. rn.j7 .. " = " .. rn.j7 .. " ..\n" ..
-            "                        (\n" ..
-            "                            " .. rn.j8 .. " % 2^" .. rn.j9 .. " -\n" ..
-            "                            " .. rn.j8 .. " % 2^(" .. rn.j9 .. " - 1) > 0\n" ..
-            "                            and '1'\n" ..
-            "                            or '0'\n" ..
-            "                        )\n" ..
-            "                end\n" ..
-            "\n" ..
-            "                return " .. rn.j7 .. "\n" ..
-            "            end)\n" ..
-            "            :gsub(\n" ..
-            "                '%d%d%d?%d?%d?%d?%d?%d?',\n" ..
-            "                function(" .. rn.j10 .. ")\n" ..
-            "                    if #" .. rn.j10 .. " ~= 8 then\n" ..
-            "                        return ''\n" ..
-            "                    end\n" ..
-            "\n" ..
-            "                    local " .. rn.j1 .. " = 0\n" ..
-            "\n" ..
-            "                    for " .. rn.j2 .. " = 1, 8 do\n" ..
-            "                        " .. rn.j1 .. " = " .. rn.j1 .. " +\n" ..
-            "                            (\n" ..
-            "                                " .. rn.j10 .. ":sub(" .. rn.j2 .. ", " .. rn.j2 .. ") == '1'\n" ..
-            "                                and 2^(8 - " .. rn.j2 .. ")\n" ..
-            "                                or 0\n" ..
-            "                            )\n" ..
-            "                    end\n" ..
-            "\n" ..
-            "                    return " .. rn.char .. "(" .. rn.j1 .. ")\n" ..
-            "                end\n" ..
-            "            )\n" ..
-            "        )\n" ..
-            "    end\n" ..
-            "\n" ..
-            "    local " .. rn.lm .. " = " .. lmTable .. "\n" ..
-            "\n" ..
-            "    local " .. rn.realStrings .. " = {}\n" ..
-            "\n" ..
-            "    " .. rn.STRINGS .. " = setmetatable({}, {\n" ..
-            "        __index = " .. rn.realStrings .. ",\n" ..
-            "        __metatable = nil\n" ..
-            "    })\n" ..
-            "\n" ..
-            "    function " .. rn.DECRYPT .. "(" .. rn.j1 .. ")\n" ..
-            "        if " .. rn.realStrings .. "[" .. rn.j1 .. "] then\n" ..
-            "            return " .. rn.j1 .. "\n" ..
-            "        end\n" ..
-            "\n" ..
-            "        " .. rn.prev_values .. " = {}\n" ..
-            "\n" ..
-            "        local " .. rn.j2 .. " = " .. rn.lm .. "[" .. rn.j1 .. "]\n" ..
-            "        local " .. rn.j3 .. " = \"\"\n" ..
-            "\n" ..
-            "        for " .. rn.j4 .. " = 1, #" .. rn.j2 .. " do\n" ..
-            "            " .. rn.j3 .. " = " .. rn.j3 .. " .. " .. rn.j2 .. "[" .. rn.j4 .. "]\n" ..
-            "        end\n" ..
-            "\n" ..
-            "        local " .. rn.j5 .. " = " .. rn.b64decode .. "(" .. rn.j3 .. ")\n" ..
-            "\n" ..
-            "        local " .. rn.j6 .. " = 0\n" ..
-            "\n" ..
-            "        for " .. rn.j7 .. " = 6, 1, -1 do\n" ..
-            "            " .. rn.j6 .. " =\n" ..
-            "                " .. rn.j6 .. " * 256 +\n" ..
-            "                " .. rn.byte .. "(" .. rn.j5 .. ", " .. rn.j7 .. ")\n" ..
-            "        end\n" ..
-            "\n" ..
-            "        " .. rn.state_45 .. " =\n" ..
-            "            " .. rn.j6 .. " % 35184372088832\n" ..
-            "\n" ..
-            "        " .. rn.state_8 .. " =\n" ..
-            "            " .. rn.j6 .. " % 255 + 2\n" ..
-            "\n" ..
-            "        local " .. rn.j8 .. " =\n" ..
-            "            " .. rn.j5 .. ":sub(7)\n" ..
-            "\n" ..
-            "        local " .. rn.j9 .. " = {}\n" ..
-            "        local " .. rn.j10 .. " = " .. tostring(secret_key_8) .. "\n" ..
-            "\n" ..
-            "        for " .. rn.j1 .. " = 1, #" .. rn.j8 .. " do\n" ..
-            "            " .. rn.j10 .. " =\n" ..
-            "                (\n" ..
-            "                    " .. rn.byte .. "(" .. rn.j8 .. ", " .. rn.j1 .. ")\n" ..
-            "                    + " .. rn.j4 .. "()\n" ..
-            "                    + " .. rn.j10 .. "\n" ..
-            "                ) % 256\n" ..
-            "\n" ..
-            "            " .. rn.j9 .. "[" .. rn.j1 .. "] =\n" ..
-            "                " .. rn.charmap .. "[" .. rn.j10 .. " + 1]\n" ..
-            "        end\n" ..
-            "\n" ..
-            "        " .. rn.realStrings .. "[" .. rn.j1 .. "] =\n" ..
-            "            table.concat(" .. rn.j9 .. ")\n" ..
-            "\n" ..
-            "        return " .. rn.j1 .. "\n" ..
-            "    end\n" ..
-            "end"
+        local c = {}
+
+        local function L(s)
+            c[#c + 1] = s
+        end
+
+        L("do")
+        L("    local " .. rn.floor .. " = math.floor")
+        L("    local " .. rn.remove .. " = table.remove")
+        L("    local " .. rn.char .. " = string.char")
+        L("    local " .. rn.byte .. " = string.byte")
+        L("")
+        L("    local " .. rn.state_45 .. " = 0")
+        L("    local " .. rn.state_8 .. " = 2")
+        L("    local " .. rn.charmap .. " = {}")
+        L("")
+        L("    local " .. rn.nums .. " = {}")
+        L("")
+        L("    for " .. rn.j1 .. " = 1, 256 do")
+        L("        " .. rn.nums .. "[" .. rn.j1 .. "] = " .. rn.j1)
+        L("    end")
+        L("")
+        L("    repeat")
+        L("        local " .. rn.j2 .. " = math.random(1, #" .. rn.nums .. ")")
+        L("        local " .. rn.j3 .. " = " .. rn.remove .. "(" .. rn.nums .. ", " .. rn.j2 .. ")")
+        L("")
+        L("        " .. rn.charmap .. "[" .. rn.j3 .. "] = " .. rn.char .. "(" .. rn.j3 .. " - 1)")
+        L("    until #" .. rn.nums .. " == 0")
+        L("")
+        L("    local " .. rn.prev_values .. " = {}")
+        L("")
+        L("    local function " .. rn.j4 .. "()")
+        L("        if #" .. rn.prev_values .. " == 0 then")
+        L("            " .. rn.state_45 .. " =")
+        L("                (" .. rn.state_45 .. " * " .. tostring(param_mul_45))
+        L("                + " .. tostring(param_add_45) .. ")")
+        L("                % 35184372088832")
+        L("")
+        L("            repeat")
+        L("                " .. rn.state_8 .. " =")
+        L("                    " .. rn.state_8 .. " * " .. tostring(param_mul_8))
+        L("                    % 257")
+        L("            until " .. rn.state_8 .. " ~= 1")
+        L("")
+        L("            local " .. rn.j5 .. " = " .. rn.state_8 .. " % 32")
+        L("")
+        L("            local " .. rn.j6 .. " =")
+        L("                " .. rn.floor .. "(")
+        L("                    " .. rn.state_45 .. " /")
+        L("                    2 ^ (13 - (" .. rn.state_8 .. " - " .. rn.j5 .. ") / 32)")
+        L("                )")
+        L("                % 2 ^ 32")
+        L("                / 2 ^ " .. rn.j5)
+        L("")
+        L("            local " .. rn.j7 .. " =")
+        L("                " .. rn.floor .. "(" .. rn.j6 .. " % 1 * 2 ^ 32) +")
+        L("                " .. rn.floor .. "(" .. rn.j6 .. ")")
+        L("")
+        L("            local " .. rn.j8 .. " = " .. rn.j7 .. " % 65536")
+        L("            local " .. rn.j9 .. " =")
+        L("                (" .. rn.j7 .. " - " .. rn.j8 .. ") / 65536")
+        L("")
+        L("            local " .. rn.j10 .. " = " .. rn.j8 .. " % 256")
+        L("            local " .. rn.j1 .. " = (" .. rn.j8 .. " - " .. rn.j10 .. ") / 256")
+        L("            local " .. rn.j2 .. " = " .. rn.j9 .. " % 256")
+        L("            local " .. rn.j3 .. " = (" .. rn.j9 .. " - " .. rn.j2 .. ") / 256")
+        L("")
+        L("            " .. rn.prev_values .. " = {")
+        L("                " .. rn.j10 .. ",")
+        L("                " .. rn.j1 .. ",")
+        L("                " .. rn.j2 .. ",")
+        L("                " .. rn.j3)
+        L("            }")
+        L("        end")
+        L("")
+        L("        return " .. rn.remove .. "(" .. rn.prev_values .. ")")
+        L("    end")
+        L("")
+        L("    local " .. rn.B64C .. " = \"" .. util.B64C .. "\"")
+        L("")
+        L("    local function " .. rn.b64decode .. "(" .. rn.j5 .. ")")
+        L("        " .. rn.j5 .. " =")
+        L("            " .. rn.j5 .. ":gsub(")
+        L("                '[^' .. " .. rn.B64C .. " .. '=]',")
+        L("                ''")
+        L("            )")
+        L("")
+        L("        return (")
+        L("            " .. rn.j5 .. ":gsub('.', function(" .. rn.j6 .. ")")
+        L("                if " .. rn.j6 .. " == '=' then")
+        L("                    return ''")
+        L("                end")
+        L("")
+        L("                local " .. rn.j7 .. " = ''")
+        L("                local " .. rn.j8 .. " =")
+        L("                    " .. rn.B64C .. ":find(" .. rn.j6 .. ", 1, true) - 1")
+        L("")
+        L("                for " .. rn.j9 .. " = 6, 1, -1 do")
+        L("                    " .. rn.j7 .. " = " .. rn.j7 .. " ..")
+        L("                        (")
+        L("                            " .. rn.j8 .. " % 2^" .. rn.j9 .. " -")
+        L("                            " .. rn.j8 .. " % 2^(" .. rn.j9 .. " - 1) > 0")
+        L("                            and '1'")
+        L("                            or '0'")
+        L("                        )")
+        L("                end")
+        L("")
+        L("                return " .. rn.j7)
+        L("            end)")
+        L("            :gsub(")
+        L("                '%d%d%d?%d?%d?%d?%d?%d?',")
+        L("                function(" .. rn.j10 .. ")")
+        L("                    if #" .. rn.j10 .. " ~= 8 then")
+        L("                        return ''")
+        L("                    end")
+        L("")
+        L("                    local " .. rn.j1 .. " = 0")
+        L("")
+        L("                    for " .. rn.j2 .. " = 1, 8 do")
+        L("                        " .. rn.j1 .. " = " .. rn.j1 .. " +")
+        L("                            (")
+        L("                                " .. rn.j10 .. ":sub(" .. rn.j2 .. ", " .. rn.j2 .. ") == '1'")
+        L("                                and 2^(8 - " .. rn.j2 .. ")")
+        L("                                or 0")
+        L("                            )")
+        L("                    end")
+        L("")
+        L("                    return " .. rn.char .. "(" .. rn.j1 .. ")")
+        L("                end")
+        L("            )")
+        L("        )")
+        L("    end")
+        L("")
+        L("    local " .. rn.lm .. " = " .. lmTable)
+        L("")
+        L("    local " .. rn.realStrings .. " = {}")
+        L("")
+        L("    " .. rn.STRINGS .. " = setmetatable({}, {")
+        L("        __index = " .. rn.realStrings .. ",")
+        L("        __metatable = nil")
+        L("    })")
+        L("")
+        L("    function " .. rn.DECRYPT .. "(" .. rn.j1 .. ")")
+        L("        if " .. rn.realStrings .. "[" .. rn.j1 .. "] then")
+        L("            return " .. rn.j1)
+        L("        end")
+        L("")
+        L("        " .. rn.prev_values .. " = {}")
+        L("")
+        L("        local " .. rn.j2 .. " = " .. rn.lm .. "[" .. rn.j1 .. "]")
+        L("        local " .. rn.j3 .. " = \"\"")
+        L("")
+        L("        for " .. rn.j4 .. " = 1, #" .. rn.j2 .. " do")
+        L("            " .. rn.j3 .. " = " .. rn.j3 .. " .. " .. rn.j2 .. "[" .. rn.j4 .. "]")
+        L("        end")
+        L("")
+        L("        local " .. rn.j5 .. " = " .. rn.b64decode .. "(" .. rn.j3 .. ")")
+        L("")
+        L("        local " .. rn.j6 .. " = 0")
+        L("")
+        L("        for " .. rn.j7 .. " = 6, 1, -1 do")
+        L("            " .. rn.j6 .. " =")
+        L("                " .. rn.j6 .. " * 256 +")
+        L("                " .. rn.byte .. "(" .. rn.j5 .. ", " .. rn.j7 .. ")")
+        L("        end")
+        L("")
+        L("        " .. rn.state_45 .. " =")
+        L("            " .. rn.j6 .. " % 35184372088832")
+        L("")
+        L("        " .. rn.state_8 .. " =")
+        L("            " .. rn.j6 .. " % 255 + 2")
+        L("")
+        L("        local " .. rn.j8 .. " =")
+        L("            " .. rn.j5 .. ":sub(7)")
+        L("")
+        L("        local " .. rn.j9 .. " = {}")
+        L("        local " .. rn.j10 .. " = " .. tostring(secret_key_8))
+        L("")
+        L("        for " .. rn.j1 .. " = 1, #" .. rn.j8 .. " do")
+        L("            " .. rn.j10 .. " =")
+        L("                (")
+        L("                    " .. rn.byte .. "(" .. rn.j8 .. ", " .. rn.j1 .. ")")
+        L("                    + " .. rn.j4 .. "()")
+        L("                    + " .. rn.j10)
+        L("                ) % 256")
+        L("")
+        L("            " .. rn.j9 .. "[" .. rn.j1 .. "] =")
+        L("                " .. rn.charmap .. "[" .. rn.j10 .. " + 1]")
+        L("        end")
+        L("")
+        L("        " .. rn.realStrings .. "[" .. rn.j1 .. "] =")
+        L("            table.concat(" .. rn.j9 .. ")")
+        L("")
+        L("        return " .. rn.j1)
+        L("    end")
+        L("end")
+
+        local code = table.concat(c, "\n")
 
         return code, rn.STRINGS, rn.DECRYPT
     end
