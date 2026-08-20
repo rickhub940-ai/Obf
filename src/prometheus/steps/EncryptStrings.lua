@@ -2,7 +2,10 @@
 --
 -- EncryptStrings.lua
 --
--- This Script provides a Simple Obfuscation Step that encrypts strings
+-- Modified:
+--   Lua 5.1 compatible
+--   Seed-based xorshift32
+--   Mathematical seed generation
 
 local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
@@ -11,282 +14,636 @@ local RandomStrings = require("prometheus.randomStrings")
 local Parser = require("prometheus.parser")
 local Enums = require("prometheus.enums")
 local logger = require("logger")
-local visitast = require("prometheus.visitast");
-local util     = require("prometheus.util")
-local AstKind = Ast.AstKind;
+local visitast = require("prometheus.visitast")
+local util = require("prometheus.util")
+
+local AstKind = Ast.AstKind
 
 local EncryptStrings = Step:extend()
+
 EncryptStrings.Description = "This Step will encrypt strings within your Program."
 EncryptStrings.Name = "Encrypt Strings"
-
 EncryptStrings.SettingsDescriptor = {}
 
-function EncryptStrings:init(settings) end
+function EncryptStrings:init(settings)
+    self.settings = settings or {}
+end
 
 function EncryptStrings:CreateEncrypionService()
-	local usedSeeds = {};
 
-	-- เปลี่ยนจาก 6,7,44,8 bit เป็น 32-bit ทั้งหมด
-	local secret_key_1 = math.random(0, 2^31 - 1)
-	local secret_key_2 = math.random(0, 2^31 - 1)
-	local secret_key_3 = math.random(0, 2^31 - 1)
-	local secret_key_4 = math.random(0, 2^31 - 1)
+    local usedSeeds = {}
 
-	local floor = math.floor
+    --------------------------------------------------
+    -- Secret key
+    --------------------------------------------------
 
-	-- ฟังก์ชัน XOR และ Shift สำหรับ Lua 5.1
-	local function xor32(a, b)
-		local result = 0
-		local bit = 1
-		for i = 1, 32 do
-			local a_bit = a % 2
-			local b_bit = b % 2
-			if a_bit ~= b_bit then
-				result = result + bit
-			end
-			a = floor(a / 2)
-			b = floor(b / 2)
-			bit = bit * 2
-		end
-		return result
-	end
-	
-	local function shl32(a, n)
-		return (a * (2 ^ n)) % 2^32
-	end
-	
-	local function shr32(a, n)
-		return floor(a / (2 ^ n))
-	end
+    local secret_key = math.random(1, 2147483646)
 
-	-- xorshift32 (แทน primitive_root_257 + LCG)
-	local function xorshift32(x)
-		x = xor32(x, shl32(x, 13))
-		x = xor32(x, shr32(x, 17))
-		x = xor32(x, shl32(x, 5))
-		return x % 2^32
-	end
+    --------------------------------------------------
+    -- Lua 5.1 compatible XOR
+    --------------------------------------------------
 
-	local param_mul = secret_key_1
-	local param_add = secret_key_2
+    local function xor32(a, b)
+        local result = 0
+        local bit = 1
 
-	local state_45 = 0
-	local state_8 = 2
+        for i = 1, 32 do
+            local abit = a % 2
+            local bbit = b % 2
 
-	local prev_values = {}
-	local function set_seed(seed_53)
-		state_45 = seed_53 % 35184372088832
-		state_8 = seed_53 % 255 + 2
-		prev_values = {}
-	end
+            if abit ~= bbit then
+                result = result + bit
+            end
 
-	local function gen_seed()
-		local seed;
-		repeat
-			seed = math.random(0, 35184372088832);
-		until not usedSeeds[seed];
-		usedSeeds[seed] = true;
-		return seed;
-	end
+            a = math.floor(a / 2)
+            b = math.floor(b / 2)
 
-	local function get_random_32()
-		-- ใช้ xorshift32 แทน LCG
-		state_45 = xorshift32(state_45 + param_mul + param_add)
-		state_8 = xorshift32(state_8 + param_mul) % 256 + 2
-		local r = state_8 % 32
-		local n = floor(state_45 / 2 ^ (13 - (state_8 - r) / 32)) % 2 ^ 32 / 2 ^ r
-		return floor(n % 1 * 2 ^ 32) + floor(n)
-	end
+            bit = bit * 2
+        end
 
-	local function get_next_pseudo_random_byte()
-		if #prev_values == 0 then
-			local rnd = get_random_32()
-			local low_16 = rnd % 65536
-			local high_16 = (rnd - low_16) / 65536
-			local b1 = low_16 % 256
-			local b2 = (low_16 - b1) / 256
-			local b3 = high_16 % 256
-			local b4 = (high_16 - b3) / 256
-			prev_values = { b1, b2, b3, b4 }
-		end
-		return table.remove(prev_values)
-	end
+        return result
+    end
 
-	local function encrypt(str)
-		local seed = gen_seed();
-		set_seed(seed)
-		local len = string.len(str)
-		local out = {}
-		local prevVal = secret_key_4 % 256;
-		for i = 1, len do
-			local byte = string.byte(str, i);
-			out[i] = string.char((byte - (get_next_pseudo_random_byte() + prevVal)) % 256);
-			prevVal = byte;
-		end
-		return table.concat(out), seed;
-	end
+    --------------------------------------------------
+    -- 32-bit shifts
+    --------------------------------------------------
 
-	local function genCode()
-		local code = [[
+    local function shl32(a, n)
+        return (a * (2 ^ n)) % 4294967296
+    end
+
+    local function shr32(a, n)
+        return math.floor(a / (2 ^ n))
+    end
+
+    --------------------------------------------------
+    -- State
+    --------------------------------------------------
+
+    local state = 0
+    local prev_values = {}
+
+    --------------------------------------------------
+    -- Seed -> PRNG state
+    --------------------------------------------------
+
+    local function set_seed(seed)
+        state = seed % 4294967296
+
+        if state == 0 then
+            state = 2463534242
+        end
+
+        prev_values = {}
+    end
+
+    --------------------------------------------------
+    -- Mathematical seed generator
+    --------------------------------------------------
+
+    local function make_seed()
+        local a = math.random(100000, 999999)
+        local b = math.random(1000, 9999)
+
+        local aa = a * a
+        local ab = a * b
+        local bb = b * 7919
+
+        local seed = (aa + ab + bb) % 35184372088832
+
+        if seed < 1 then
+            seed = 104729
+        end
+
+        return seed
+    end
+
+    local function gen_seed()
+        local seed
+
+        repeat
+            seed = make_seed()
+        until not usedSeeds[seed]
+
+        usedSeeds[seed] = true
+
+        return seed
+    end
+
+    --------------------------------------------------
+    -- Xorshift32
+    --------------------------------------------------
+
+    local function xorshift32()
+        local x = state
+
+        x = xor32(x, shl32(x, 13))
+        x = xor32(x, shr32(x, 17))
+        x = xor32(x, shl32(x, 5))
+
+        state = x % 4294967296
+
+        if state == 0 then
+            state = 2463534242
+        end
+
+        return state
+    end
+
+    --------------------------------------------------
+    -- Generate pseudo random byte
+    --------------------------------------------------
+
+    local function get_next_pseudo_random_byte()
+
+        if #prev_values == 0 then
+
+            local rnd = xorshift32()
+
+            local low_16 = rnd % 65536
+            local high_16 =
+                math.floor(rnd / 65536)
+
+            local b1 = low_16 % 256
+
+            local b2 =
+                math.floor(low_16 / 256)
+
+            local b3 =
+                high_16 % 256
+
+            local b4 =
+                math.floor(high_16 / 256)
+
+            prev_values = {
+                b1,
+                b2,
+                b3,
+                b4
+            }
+        end
+
+        return table.remove(prev_values)
+    end
+
+    --------------------------------------------------
+    -- Encrypt
+    --------------------------------------------------
+
+    local function encrypt(str)
+
+        local seed = gen_seed()
+
+        -- seed now controls the PRNG
+        set_seed(seed)
+
+        local len = string.len(str)
+        local out = {}
+
+        local prevVal =
+            secret_key % 256
+
+        for i = 1, len do
+
+            local byte =
+                string.byte(str, i)
+
+            local rnd =
+                get_next_pseudo_random_byte()
+
+            local encrypted =
+                (byte - (rnd + prevVal)) % 256
+
+            out[i] =
+                string.char(encrypted)
+
+            prevVal = byte
+        end
+
+        return table.concat(out), seed
+    end
+
+    --------------------------------------------------
+    -- Runtime decryptor
+    --------------------------------------------------
+
+    local function genCode()
+
+        local code = [[
 do
-	local floor = math.floor
-	local random = math.random;
-	local remove = table.remove;
-	local char = string.char;
-	local state_45 = 0
-	local state_8 = 2
-	local charmap = {};
 
-	local nums = {};
-	for i = 1, 256 do
-		nums[i] = i;
-	end
+    local floor = math.floor
+    local remove = table.remove
+    local char = string.char
+    local byte = string.byte
 
-	repeat
-		local idx = random(1, #nums);
-		local n = remove(nums, idx);
-		charmap[n] = char(n - 1);
-	until #nums == 0;
+    ------------------------------------------------
+    -- PRNG state
+    ------------------------------------------------
 
-	-- ==========================================
-	-- xorshift32 functions
-	-- ==========================================
-	local function xor32(a, b)
-		local result = 0
-		local bit = 1
-		for i = 1, 32 do
-			local a_bit = a % 2
-			local b_bit = b % 2
-			if a_bit ~= b_bit then
-				result = result + bit
-			end
-			a = floor(a / 2)
-			b = floor(b / 2)
-			bit = bit * 2
-		end
-		return result
-	end
-	
-	local function shl32(a, n)
-		return (a * (2 ^ n)) % 2^32
-	end
-	
-	local function shr32(a, n)
-		return floor(a / (2 ^ n))
-	end
+    local state = 0
+    local prev_values = {}
 
-	local function xorshift32(x)
-		x = xor32(x, shl32(x, 13))
-		x = xor32(x, shr32(x, 17))
-		x = xor32(x, shl32(x, 5))
-		return x % 2^32
-	end
+    ------------------------------------------------
+    -- XOR
+    ------------------------------------------------
 
-	local param_mul = ]] .. tostring(param_mul) .. [[
-	local param_add = ]] .. tostring(param_add) .. [[
+    local function xor32(a, b)
 
-	local prev_values = {}
-	local function get_next_pseudo_random_byte()
-		if #prev_values == 0 then
-			state_45 = xorshift32(state_45 + param_mul + param_add)
-			state_8 = xorshift32(state_8 + param_mul) % 256 + 2
-			local r = state_8 % 32
-			local n = floor(state_45 / 2 ^ (13 - (state_8 - r) / 32)) % 2 ^ 32 / 2 ^ r
-			local rnd = floor(n % 1 * 2 ^ 32) + floor(n)
-			local low_16 = rnd % 65536
-			local high_16 = (rnd - low_16) / 65536
-			local b1 = low_16 % 256
-			local b2 = (low_16 - b1) / 256
-			local b3 = high_16 % 256
-			local b4 = (high_16 - b3) / 256
-			prev_values = { b1, b2, b3, b4 }
-		end
-		return table.remove(prev_values)
-	end
+        local result = 0
+        local bit = 1
 
-	local realStrings = {};
-	STRINGS = setmetatable({}, {
-		__index = realStrings;
-		__metatable = nil;
-	});
-	
-	function DECRYPT(str, seed)
-		local realStringsLocal = realStrings;
-		if(realStringsLocal[seed]) then else
-			prev_values = {};
-			local chars = charmap;
-			state_45 = seed % 35184372088832
-			state_8 = seed % 255 + 2
-			local len = string.len(str);
-			realStringsLocal[seed] = "";
-			local prevVal = ]] .. tostring(secret_key_4 % 256) .. [[;
-			for i=1, len do
-				prevVal = (string.byte(str, i) + get_next_pseudo_random_byte() + prevVal) % 256
-				realStringsLocal[seed] = realStringsLocal[seed] .. chars[prevVal + 1];
-			end
-		end
-		return seed;
-	end
-end]]
-		return code;
-	end
+        for i = 1, 32 do
 
-	return {
-		encrypt = encrypt,
-		param_mul = param_mul,
-		param_add = param_add,
-		secret_key_4 = secret_key_4,
-		genCode = genCode,
-	}
+            local abit = a % 2
+            local bbit = b % 2
+
+            if abit ~= bbit then
+                result = result + bit
+            end
+
+            a = floor(a / 2)
+            b = floor(b / 2)
+
+            bit = bit * 2
+        end
+
+        return result
+    end
+
+    ------------------------------------------------
+    -- shifts
+    ------------------------------------------------
+
+    local function shl32(a, n)
+        return (a * (2 ^ n)) % 4294967296
+    end
+
+    local function shr32(a, n)
+        return floor(a / (2 ^ n))
+    end
+
+    ------------------------------------------------
+    -- xorshift32
+    ------------------------------------------------
+
+    local function xorshift32()
+
+        local x = state
+
+        x = xor32(
+            x,
+            shl32(x, 13)
+        )
+
+        x = xor32(
+            x,
+            shr32(x, 17)
+        )
+
+        x = xor32(
+            x,
+            shl32(x, 5)
+        )
+
+        state =
+            x % 4294967296
+
+        if state == 0 then
+            state = 2463534242
+        end
+
+        return state
+    end
+
+    ------------------------------------------------
+    -- random byte
+    ------------------------------------------------
+
+    local function get_next_pseudo_random_byte()
+
+        if #prev_values == 0 then
+
+            local rnd =
+                xorshift32()
+
+            local low_16 =
+                rnd % 65536
+
+            local high_16 =
+                floor(rnd / 65536)
+
+            local b1 =
+                low_16 % 256
+
+            local b2 =
+                floor(low_16 / 256)
+
+            local b3 =
+                high_16 % 256
+
+            local b4 =
+                floor(high_16 / 256)
+
+            prev_values = {
+                b1,
+                b2,
+                b3,
+                b4
+            }
+        end
+
+        return remove(prev_values)
+    end
+
+    ------------------------------------------------
+    -- Randomized character map
+    ------------------------------------------------
+
+    local nums = {}
+
+    for i = 1, 256 do
+        nums[i] = i
+    end
+
+    local charmap = {}
+
+    while #nums > 0 do
+
+        local idx =
+            math.random(1, #nums)
+
+        local n =
+            remove(nums, idx)
+
+        charmap[n] =
+            char(n - 1)
+    end
+
+    ------------------------------------------------
+    -- String cache
+    ------------------------------------------------
+
+    local realStrings = {}
+
+    STRINGS = setmetatable(
+        {},
+        {
+            __index = realStrings,
+            __metatable = nil
+        }
+    )
+
+    ------------------------------------------------
+    -- Decrypt
+    ------------------------------------------------
+
+    function DECRYPT(str, seed)
+
+        local cached =
+            realStrings[seed]
+
+        if cached then
+            return seed
+        end
+
+        ------------------------------------------------
+        -- Seed directly controls PRNG
+        ------------------------------------------------
+
+        state =
+            seed % 4294967296
+
+        if state == 0 then
+            state = 2463534242
+        end
+
+        prev_values = {}
+
+        local len =
+            string.len(str)
+
+        local result = {}
+
+        local prevVal =
+            ]] .. tostring(secret_key % 256) .. [[
+
+        for i = 1, len do
+
+            local encrypted =
+                byte(str, i)
+
+            local rnd =
+                get_next_pseudo_random_byte()
+
+            local original =
+                (
+                    encrypted
+                    + rnd
+                    + prevVal
+                ) % 256
+
+            result[i] =
+                charmap[original + 1]
+
+            prevVal =
+                original
+        end
+
+        realStrings[seed] =
+            table.concat(result)
+
+        return seed
+    end
+
+end
+]]
+
+        return code
+    end
+
+    return {
+        encrypt = encrypt,
+        genCode = genCode,
+        secret_key = secret_key
+    }
 end
 
 function EncryptStrings:apply(ast, pipeline)
-	local Encryptor = self:CreateEncrypionService();
 
-	local code = Encryptor.genCode();
-	local newAst = Parser:new({ LuaVersion = Enums.LuaVersion.Lua51 }):parse(code);
-	local doStat = newAst.body.statements[1];
+    local Encryptor =
+        self:CreateEncrypionService()
 
-	local scope = ast.body.scope;
-	local decryptVar = scope:addVariable();
-	local stringsVar = scope:addVariable();
-	
-	doStat.body.scope:setParent(ast.body.scope);
+    --------------------------------------------------
+    -- Generate decrypt runtime
+    --------------------------------------------------
 
-	visitast(newAst, nil, function(node, data)
-		if(node.kind == AstKind.FunctionDeclaration) then
-			if(node.scope:getVariableName(node.id) == "DECRYPT") then
-				data.scope:removeReferenceToHigherScope(node.scope, node.id);
-				data.scope:addReferenceToHigherScope(scope, decryptVar);
-				node.scope = scope;
-				node.id    = decryptVar;
-			end
-		end
-		if(node.kind == AstKind.AssignmentVariable or node.kind == AstKind.VariableExpression) then
-			if(node.scope:getVariableName(node.id) == "STRINGS") then
-				data.scope:removeReferenceToHigherScope(node.scope, node.id);
-				data.scope:addReferenceToHigherScope(scope, stringsVar);
-				node.scope = scope;
-				node.id    = stringsVar;
-			end
-		end
-	end)
+    local code =
+        Encryptor.genCode()
 
-	visitast(ast, nil, function(node, data)
-		if(node.kind == AstKind.StringExpression) then
-			data.scope:addReferenceToHigherScope(scope, stringsVar);
-			data.scope:addReferenceToHigherScope(scope, decryptVar);
-			local encrypted, seed = Encryptor.encrypt(node.value);
-			return Ast.IndexExpression(Ast.VariableExpression(scope, stringsVar), Ast.FunctionCallExpression(Ast.VariableExpression(scope, decryptVar), {
-				Ast.StringExpression(encrypted), Ast.NumberExpression(seed),
-			}));
-		end
-	end)
+    local newAst =
+        Parser:new({
+            LuaVersion = Enums.LuaVersion.Lua51
+        }):parse(code)
 
-	-- Insert to Main Ast
-	table.insert(ast.body.statements, 1, doStat);
-	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(scope, util.shuffle{ decryptVar, stringsVar }, {}));
-	return ast
+    local doStat =
+        newAst.body.statements[1]
+
+    --------------------------------------------------
+    -- Create variables
+    --------------------------------------------------
+
+    local scope =
+        ast.body.scope
+
+    local decryptVar =
+        scope:addVariable()
+
+    local stringsVar =
+        scope:addVariable()
+
+    doStat.body.scope:setParent(
+        ast.body.scope
+    )
+
+    --------------------------------------------------
+    -- Rebind DECRYPT / STRINGS
+    --------------------------------------------------
+
+    visitast(
+        newAst,
+        nil,
+        function(node, data)
+
+            if node.kind ==
+                AstKind.FunctionDeclaration
+            then
+
+                if node.scope:getVariableName(node.id)
+                    == "DECRYPT"
+                then
+
+                    data.scope:removeReferenceToHigherScope(
+                        node.scope,
+                        node.id
+                    )
+
+                    data.scope:addReferenceToHigherScope(
+                        scope,
+                        decryptVar
+                    )
+
+                    node.scope = scope
+                    node.id = decryptVar
+                end
+            end
+
+            if node.kind ==
+                AstKind.AssignmentVariable
+                or
+                node.kind ==
+                AstKind.VariableExpression
+            then
+
+                if node.scope:getVariableName(node.id)
+                    == "STRINGS"
+                then
+
+                    data.scope:removeReferenceToHigherScope(
+                        node.scope,
+                        node.id
+                    )
+
+                    data.scope:addReferenceToHigherScope(
+                        scope,
+                        stringsVar
+                    )
+
+                    node.scope = scope
+                    node.id = stringsVar
+                end
+            end
+        end
+    )
+
+    --------------------------------------------------
+    -- Encrypt every string
+    --------------------------------------------------
+
+    visitast(
+        ast,
+        nil,
+        function(node, data)
+
+            if node.kind ==
+                AstKind.StringExpression
+            then
+
+                data.scope:addReferenceToHigherScope(
+                    scope,
+                    stringsVar
+                )
+
+                data.scope:addReferenceToHigherScope(
+                    scope,
+                    decryptVar
+                )
+
+                local encrypted, seed =
+                    Encryptor.encrypt(
+                        node.value
+                    )
+
+                return Ast.IndexExpression(
+                    Ast.VariableExpression(
+                        scope,
+                        stringsVar
+                    ),
+
+                    Ast.FunctionCallExpression(
+                        Ast.VariableExpression(
+                            scope,
+                            decryptVar
+                        ),
+                        {
+                            Ast.StringExpression(
+                                encrypted
+                            ),
+
+                            Ast.NumberExpression(
+                                seed
+                            )
+                        }
+                    )
+                )
+            end
+        end
+    )
+
+    --------------------------------------------------
+    -- Insert runtime
+    --------------------------------------------------
+
+    table.insert(
+        ast.body.statements,
+        1,
+        doStat
+    )
+
+    table.insert(
+        ast.body.statements,
+        1,
+        Ast.LocalVariableDeclaration(
+            scope,
+            util.shuffle{
+                decryptVar,
+                stringsVar
+            },
+            {}
+        )
+    )
+
+    return ast
 end
 
 return EncryptStrings
