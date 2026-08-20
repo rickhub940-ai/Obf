@@ -1,6 +1,3 @@
--- NumbersToExpressions.lua
--- Based on the original Prometheus implementation
-
 local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
 local visitast = require("prometheus.visitast");
@@ -47,11 +44,7 @@ function NumbersToExpressions:init(settings)
             local b =
                 val - a;
 
-            if
-                tonumber(tostring(a))
-                + tonumber(tostring(b))
-                ~= val
-            then
+            if a + b ~= val then
                 return false;
             end
 
@@ -71,11 +64,7 @@ function NumbersToExpressions:init(settings)
             local a =
                 val + b;
 
-            if
-                tonumber(tostring(a))
-                - tonumber(tostring(b))
-                ~= val
-            then
+            if a - b ~= val then
                 return false;
             end
 
@@ -92,19 +81,25 @@ function NumbersToExpressions:init(settings)
             local b =
                 math.random(-100000, 100000);
 
-            local a =
-                val;
-
             local left =
                 Ast.AddExpression(
-                    self:CreateNumberExpression(a, depth),
-                    self:CreateNumberExpression(b, depth),
+                    self:CreateNumberExpression(
+                        val,
+                        depth
+                    ),
+                    self:CreateNumberExpression(
+                        b,
+                        depth
+                    ),
                     false
                 );
 
             return Ast.SubExpression(
                 left,
-                self:CreateNumberExpression(b, depth),
+                self:CreateNumberExpression(
+                    b,
+                    depth
+                ),
                 false
             );
         end,
@@ -117,14 +112,23 @@ function NumbersToExpressions:init(settings)
 
             local left =
                 Ast.SubExpression(
-                    self:CreateNumberExpression(val, depth),
-                    self:CreateNumberExpression(b, depth),
+                    self:CreateNumberExpression(
+                        val,
+                        depth
+                    ),
+                    self:CreateNumberExpression(
+                        b,
+                        depth
+                    ),
                     false
                 );
 
             return Ast.AddExpression(
                 left,
-                self:CreateNumberExpression(b, depth),
+                self:CreateNumberExpression(
+                    b,
+                    depth
+                ),
                 false
             );
         end,
@@ -139,12 +143,25 @@ function NumbersToExpressions:init(settings)
             local b =
                 math.random(2, 31);
 
-            local a =
-                val * b;
+            local mul =
+                Ast.MulExpression(
+                    self:CreateNumberExpression(
+                        val,
+                        depth
+                    ),
+                    self:CreateNumberExpression(
+                        b,
+                        depth
+                    ),
+                    false
+                );
 
             return Ast.DivExpression(
-                self:CreateNumberExpression(a, depth),
-                self:CreateNumberExpression(b, depth),
+                mul,
+                self:CreateNumberExpression(
+                    b,
+                    depth
+                ),
                 false
             );
         end,
@@ -163,12 +180,25 @@ function NumbersToExpressions:init(settings)
                 return false;
             end
 
-            local a =
-                val / b;
+            local div =
+                Ast.DivExpression(
+                    self:CreateNumberExpression(
+                        val,
+                        depth
+                    ),
+                    self:CreateNumberExpression(
+                        b,
+                        depth
+                    ),
+                    false
+                );
 
             return Ast.MulExpression(
-                self:CreateNumberExpression(a, depth),
-                self:CreateNumberExpression(b, depth),
+                div,
+                self:CreateNumberExpression(
+                    b,
+                    depth
+                ),
                 false
             );
         end,
@@ -255,104 +285,6 @@ function NumbersToExpressions:init(settings)
                 right,
                 false
             );
-        end,
-
-        -- ((A * B) + C) - C
-        function(val, depth)
-
-            if val ~= math.floor(val) then
-                return false;
-            end
-
-            local b =
-                math.random(2, 31);
-
-            local c =
-                math.random(-100000, 100000);
-
-            local mul =
-                Ast.MulExpression(
-                    self:CreateNumberExpression(
-                        val,
-                        depth
-                    ),
-                    self:CreateNumberExpression(
-                        b,
-                        depth
-                    ),
-                    false
-                );
-
-            local add =
-                Ast.AddExpression(
-                    mul,
-                    self:CreateNumberExpression(
-                        c,
-                        depth
-                    ),
-                    false
-                );
-
-            return Ast.SubExpression(
-                add,
-                self:CreateNumberExpression(
-                    c,
-                    depth
-                ),
-                false
-            );
-        end,
-
-        -- ((A - B) + C) - C + B
-        function(val, depth)
-
-            local b =
-                math.random(-100000, 100000);
-
-            local c =
-                math.random(-100000, 100000);
-
-            local sub =
-                Ast.SubExpression(
-                    self:CreateNumberExpression(
-                        val,
-                        depth
-                    ),
-                    self:CreateNumberExpression(
-                        b,
-                        depth
-                    ),
-                    false
-                );
-
-            local add =
-                Ast.AddExpression(
-                    sub,
-                    self:CreateNumberExpression(
-                        c,
-                        depth
-                    ),
-                    false
-                );
-
-            local sub2 =
-                Ast.SubExpression(
-                    add,
-                    self:CreateNumberExpression(
-                        c,
-                        depth
-                    ),
-                    false
-                );
-
-            return Ast.AddExpression(
-                sub2,
-                self:CreateNumberExpression(
-                    b,
-                    depth
-                ),
-                false
-            );
         end
     };
 end
@@ -373,11 +305,17 @@ function NumbersToExpressions:CreateNumberExpression(
         return Ast.NumberExpression(val);
     end
 
+    -- ไม่ใช้ unpack / table.unpack
+    local generatorCopy = {};
+
+    for i = 1, #self.ExpressionGenerators do
+        generatorCopy[i] =
+            self.ExpressionGenerators[i];
+    end
+
     local generators =
         util.shuffle(
-            {
-                unpack(self.ExpressionGenerators)
-            }
+            generatorCopy
         );
 
     for _, generator in ipairs(generators) do
