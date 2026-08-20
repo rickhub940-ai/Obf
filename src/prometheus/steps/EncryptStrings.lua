@@ -3,7 +3,7 @@
 -- EncryptStrings.lua
 --
 -- This Script provides a Simple Obfuscation Step that encrypts strings
--- (Modified: ใช้ xorshift32 แทน LCG เพื่อความแข็งแกร่งขึ้น)
+-- (Modified: ใช้ฟังก์ชันที่ Lua 5.1 รองรับ)
 
 local Step = require("prometheus.step")
 local Ast = require("prometheus.ast")
@@ -30,26 +30,51 @@ function EncryptStrings:CreateEncrypionService()
     local usedSeeds = {};
 
     -- ============================================
-    -- ใช้ xorshift32 แทน LCG เดิม
+    -- ใช้ฟังก์ชัน XOR และ Shift ที่ Lua 5.1 รองรับ
     -- ============================================
-    local secret_key = math.random(0, 2^32 - 1)
+    local secret_key = math.random(1, 2^31 - 1)
     
-    -- ฟังก์ชัน xorshift32 (เร็วและแข็งแรงกว่า LCG)
-    local function xorshift32(x)
-        x = x ~ (x << 13)
-        x = x ~ (x >> 17)
-        x = x ~ (x << 5)
-        return x % 2^32
+    -- ฟังก์ชัน XOR สำหรับ Lua 5.1 (ไม่มี bitwise operator)
+    local function xor32(a, b)
+        local result = 0
+        local bit = 1
+        for i = 1, 32 do
+            local a_bit = a % 2
+            local b_bit = b % 2
+            if a_bit ~= b_bit then
+                result = result + bit
+            end
+            a = math.floor(a / 2)
+            b = math.floor(b / 2)
+            bit = bit * 2
+        end
+        return result
     end
     
+    -- ฟังก์ชัน shift left
+    local function shl32(a, n)
+        return (a * (2 ^ n)) % 2^32
+    end
+    
+    -- ฟังก์ชัน shift right
+    local function shr32(a, n)
+        return math.floor(a / (2 ^ n))
+    end
+    
+    -- xorshift32 (ใช้ฟังก์ชันที่ Lua 5.1 รองรับ)
     local state = secret_key
-    local function get_random_32()
-        state = xorshift32(state)
+    
+    local function xorshift32()
+        local x = state
+        x = xor32(x, shl32(x, 13))
+        x = xor32(x, shr32(x, 17))
+        x = xor32(x, shl32(x, 5))
+        state = x % 2^32
         return state
     end
 
     -- ============================================
-    -- ส่วนที่เหลือเหมือนเดิมทุกประการ
+    -- ส่วนที่เหลือเหมือนเดิม
     -- ============================================
     local state_45 = 0
     local state_8 = 2
@@ -72,7 +97,7 @@ function EncryptStrings:CreateEncrypionService()
 
     local function get_next_pseudo_random_byte()
         if #prev_values == 0 then
-            local rnd = get_random_32()
+            local rnd = xorshift32()
             local low_16 = rnd % 65536
             local high_16 = (rnd - low_16) / 65536
             local b1 = low_16 % 256
@@ -107,9 +132,7 @@ do
     local char = string.char;
     local state_45 = 0
     local state_8 = 2
-    local digits = {}
     local charmap = {};
-    local i = 0;
 
     local nums = {};
     for i = 1, 256 do
@@ -123,26 +146,50 @@ do
     until #nums == 0;
 
     -- ==========================================
-    -- xorshift32 PRNG (แทน LCG เดิม)
+    -- XOR และ Shift functions (Lua 5.1)
+    -- ==========================================
+    local function xor32(a, b)
+        local result = 0
+        local bit = 1
+        for i = 1, 32 do
+            local a_bit = a % 2
+            local b_bit = b % 2
+            if a_bit ~= b_bit then
+                result = result + bit
+            end
+            a = floor(a / 2)
+            b = floor(b / 2)
+            bit = bit * 2
+        end
+        return result
+    end
+    
+    local function shl32(a, n)
+        return (a * (2 ^ n)) % 2^32
+    end
+    
+    local function shr32(a, n)
+        return floor(a / (2 ^ n))
+    end
+
+    -- ==========================================
+    -- xorshift32 PRNG
     -- ==========================================
     local state = ]] .. tostring(secret_key) .. [[
     
-    local function xorshift32(x)
-        x = x ~ (x << 13)
-        x = x ~ (x >> 17)
-        x = x ~ (x << 5)
-        return x % 2^32
-    end
-
-    local function get_random_32()
-        state = xorshift32(state)
+    local function xorshift32()
+        local x = state
+        x = xor32(x, shl32(x, 13))
+        x = xor32(x, shr32(x, 17))
+        x = xor32(x, shl32(x, 5))
+        state = x % 2^32
         return state
     end
 
     local prev_values = {}
     local function get_next_pseudo_random_byte()
         if #prev_values == 0 then
-            local rnd = get_random_32()
+            local rnd = xorshift32()
             local low_16 = rnd % 65536
             local high_16 = (rnd - low_16) / 65536
             local b1 = low_16 % 256
@@ -159,6 +206,7 @@ do
         __index = realStrings;
         __metatable = nil;
     });
+    
     function DECRYPT(str, seed)
         local realStringsLocal = realStrings;
         if(realStringsLocal[seed]) then else
