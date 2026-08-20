@@ -78,46 +78,6 @@ function NumbersToExpressions:init(settings)
             end
             return Ast.DivExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
         end,
-        -- cos(0) = 1
-        function(val, depth)
-            if val == 1 then
-                return Ast.CallExpression(
-                    Ast.VariableExpression(Ast.Identifier("math.cos")),
-                    { Ast.NumberExpression(0) }
-                )
-            end
-            return false
-        end,
-        -- sin(0) = 0
-        function(val, depth)
-            if val == 0 then
-                return Ast.CallExpression(
-                    Ast.VariableExpression(Ast.Identifier("math.sin")),
-                    { Ast.NumberExpression(0) }
-                )
-            end
-            return false
-        end,
-        -- exp(0) = 1
-        function(val, depth)
-            if val == 1 then
-                return Ast.CallExpression(
-                    Ast.VariableExpression(Ast.Identifier("math.exp")),
-                    { Ast.NumberExpression(0) }
-                )
-            end
-            return false
-        end,
-        -- log(1) = 0
-        function(val, depth)
-            if val == 0 then
-                return Ast.CallExpression(
-                    Ast.VariableExpression(Ast.Identifier("math.log")),
-                    { Ast.NumberExpression(1) }
-                )
-            end
-            return false
-        end,
         -- (a + b) / c
         function(val, depth)
             if val == 0 then return false end
@@ -158,32 +118,6 @@ function NumbersToExpressions:init(settings)
                     )
                 end
                 return expr
-            end
-            return false
-        end,
-        -- x * 10^y (Scientific Notation)
-        function(val, depth)
-            if val == 0 then return false end
-            local mantissa = val
-            local exponent = 0
-            while mantissa >= 10 do
-                mantissa = mantissa / 10
-                exponent = exponent + 1
-            end
-            while mantissa < 1 and mantissa > 0 do
-                mantissa = mantissa * 10
-                exponent = exponent - 1
-            end
-            if exponent ~= 0 and mantissa == math.floor(mantissa) and mantissa > 0 then
-                return Ast.MulExpression(
-                    self:CreateNumberExpression(mantissa, depth + 1),
-                    Ast.CallExpression(
-                        Ast.VariableExpression(Ast.Identifier("math.pow")),
-                        { Ast.NumberExpression(10), 
-                          self:CreateNumberExpression(exponent, depth + 1) }
-                    ),
-                    false
-                )
             end
             return false
         end
