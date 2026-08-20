@@ -3,22 +3,8 @@
 -- NumbersToExpressions.lua
 --
 -- This Script provides an Obfuscation Step, that converts Number Literals to expressions
--- (Modified: Enhanced with Advanced Mathematics)
 
--- ============================================
--- FIX: unpack สำหรับ Lua 5.1
--- ============================================
-if not unpack then
-    unpack = table.unpack or function(t, i, j)
-        i = i or 1
-        j = j or #t
-        local result = {}
-        for idx = i, j do
-            result[#result + 1] = t[idx]
-        end
-        return unpack(result)
-    end
-end
+unpack = unpack or table.unpack;
 
 local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
@@ -48,43 +34,26 @@ NumbersToExpressions.SettingsDescriptor = {
 }
 
 function NumbersToExpressions:init(settings)
-    self.Treshold = settings.Treshold or 1
-    self.InternalTreshold = settings.InternalTreshold or 0.2
-    
-    self.ExpressionGenerators = {
-        -- ============================================
-        -- 1. BASIC ARITHMETIC
-        -- ============================================
-        
-        -- Addition: a + b
-        function(val, depth)
+	self.ExpressionGenerators = {
+        function(val, depth) -- Addition
             local val2 = math.random(-2^20, 2^20);
             local diff = val - val2;
             if tonumber(tostring(diff)) + tonumber(tostring(val2)) ~= val then
                 return false;
             end
-            return Ast.AddExpression(
-                self:CreateNumberExpression(val2, depth),
-                self:CreateNumberExpression(diff, depth),
-                false
-            );
-        end,
-        
-        -- Subtraction: a - b
-        function(val, depth)
+            return Ast.AddExpression(self:CreateNumberExpression(val2, depth), self:CreateNumberExpression(diff, depth), false);
+        end, 
+        function(val, depth) -- Subtraction
             local val2 = math.random(-2^20, 2^20);
             local diff = val + val2;
             if tonumber(tostring(diff)) - tonumber(tostring(val2)) ~= val then
                 return false;
             end
-            return Ast.SubExpression(
-                self:CreateNumberExpression(diff, depth),
-                self:CreateNumberExpression(val2, depth),
-                false
-            );
+            return Ast.SubExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
         end,
-        
-        -- Multiplication: a * b
+        -- ============================================
+        -- ใหม่: Multiplication
+        -- ============================================
         function(val, depth)
             if val == 0 then return false end
             local val2 = math.random(1, 2^10);
@@ -93,14 +62,11 @@ function NumbersToExpressions:init(settings)
             if tonumber(tostring(diff)) * tonumber(tostring(val2)) ~= val then
                 return false;
             end
-            return Ast.MulExpression(
-                self:CreateNumberExpression(diff, depth),
-                self:CreateNumberExpression(val2, depth),
-                false
-            );
+            return Ast.MulExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
         end,
-        
-        -- Division: a / b
+        -- ============================================
+        -- ใหม่: Division
+        -- ============================================
         function(val, depth)
             if val == 0 then return false end
             local val2 = math.random(1, 2^10);
@@ -108,20 +74,13 @@ function NumbersToExpressions:init(settings)
             if tonumber(tostring(diff)) / tonumber(tostring(val2)) ~= val then
                 return false;
             end
-            return Ast.DivExpression(
-                self:CreateNumberExpression(diff, depth),
-                self:CreateNumberExpression(val2, depth),
-                false
-            );
+            return Ast.DivExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
         end,
-
         -- ============================================
-        -- 2. TRIGONOMETRY
+        -- ใหม่: cos(0) = 1
         -- ============================================
-        
-        -- cos(0) = 1
         function(val, depth)
-            if val == 0 then
+            if val == 1 then
                 return Ast.CallExpression(
                     Ast.VariableExpression(Ast.Identifier("math.cos")),
                     { Ast.NumberExpression(0) }
@@ -129,8 +88,9 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        
-        -- sin(0) = 0
+        -- ============================================
+        -- ใหม่: sin(0) = 0
+        -- ============================================
         function(val, depth)
             if val == 0 then
                 return Ast.CallExpression(
@@ -140,8 +100,9 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        
-        -- sin(π/2) = 1
+        -- ============================================
+        -- ใหม่: sin(π/2) = 1
+        -- ============================================
         function(val, depth)
             if val == 1 then
                 return Ast.CallExpression(
@@ -155,8 +116,9 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        
-        -- cos(π) = -1
+        -- ============================================
+        -- ใหม่: cos(π) = -1
+        -- ============================================
         function(val, depth)
             if val == -1 then
                 return Ast.CallExpression(
@@ -166,12 +128,9 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-
         -- ============================================
-        -- 3. EXPONENTIAL & LOGARITHM
+        -- ใหม่: exp(0) = 1
         -- ============================================
-        
-        -- exp(0) = 1
         function(val, depth)
             if val == 1 then
                 return Ast.CallExpression(
@@ -181,8 +140,9 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        
-        -- log(1) = 0
+        -- ============================================
+        -- ใหม่: log(1) = 0
+        -- ============================================
         function(val, depth)
             if val == 0 then
                 return Ast.CallExpression(
@@ -192,24 +152,9 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        
-        -- log(e) = 1
-        function(val, depth)
-            if val == 1 then
-                return Ast.CallExpression(
-                    Ast.VariableExpression(Ast.Identifier("math.log")),
-                    { Ast.VariableExpression(Ast.Identifier("math.exp")),
-                      Ast.NumberExpression(1) }
-                )
-            end
-            return false
-        end,
-
         -- ============================================
-        -- 4. POWER & ROOT
+        -- ใหม่: a^0 = 1
         -- ============================================
-        
-        -- a^0 = 1
         function(val, depth)
             if val == 1 then
                 local base = math.random(1, 100)
@@ -220,24 +165,13 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        
-        -- 1^a = 1
-        function(val, depth)
-            if val == 1 then
-                local exp = math.random(1, 100)
-                return Ast.CallExpression(
-                    Ast.VariableExpression(Ast.Identifier("math.pow")),
-                    { Ast.NumberExpression(1), Ast.NumberExpression(exp) }
-                )
-            end
-            return false
-        end,
-
-        -- sqrt(x^2) = x
+        -- ============================================
+        -- ใหม่: sqrt(x^2) = x
+        -- ============================================
         function(val, depth)
             if val >= 0 then
                 local x = math.sqrt(val)
-                if x == math.floor(x) and x <= 2^10 then
+                if x == math.floor(x) and x <= 2^10 and x > 0 then
                     local sq = x * x
                     if tonumber(tostring(sq)) == val then
                         return Ast.CallExpression(
@@ -249,27 +183,9 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-
         -- ============================================
-        -- 5. BITWISE OPERATIONS (via functions)
+        -- ใหม่: (a + b) / c
         -- ============================================
-        
-        -- bit.bnot(0) = -1
-        function(val, depth)
-            if val == -1 then
-                return Ast.CallExpression(
-                    Ast.VariableExpression(Ast.Identifier("bit.bnot")),
-                    { Ast.NumberExpression(0) }
-                )
-            end
-            return false
-        end,
-
-        -- ============================================
-        -- 6. FRACTIONAL EXPRESSIONS
-        -- ============================================
-        
-        -- (a + b) / c
         function(val, depth)
             if val == 0 then return false end
             local c = math.random(2, 100)
@@ -288,18 +204,20 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        
-        -- a * (b + c)
+        -- ============================================
+        -- ใหม่: a * (b + c)
+        -- ============================================
         function(val, depth)
             if val == 0 then return false end
             local factors = {}
+            local temp = val
             for i = 1, math.random(2, 4) do
                 local f = math.random(2, 10)
-                if val % f ~= 0 then return false end
+                if temp % f ~= 0 then return false end
                 table.insert(factors, f)
-                val = val / f
+                temp = temp / f
             end
-            if val == 1 then
+            if temp == 1 then
                 local expr = self:CreateNumberExpression(factors[1], depth + 1)
                 for i = 2, #factors do
                     expr = Ast.MulExpression(
@@ -312,12 +230,9 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-
         -- ============================================
-        -- 7. SCIENTIFIC NOTATION
+        -- ใหม่: x * 10^y (Scientific Notation)
         -- ============================================
-        
-        -- x * 10^y
         function(val, depth)
             if val == 0 then return false end
             local mantissa = val
@@ -330,7 +245,7 @@ function NumbersToExpressions:init(settings)
                 mantissa = mantissa * 10
                 exponent = exponent - 1
             end
-            if exponent ~= 0 and mantissa == math.floor(mantissa) then
+            if exponent ~= 0 and mantissa == math.floor(mantissa) and mantissa > 0 then
                 return Ast.MulExpression(
                     self:CreateNumberExpression(mantissa, depth + 1),
                     Ast.CallExpression(
@@ -343,12 +258,9 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-
         -- ============================================
-        -- 8. CHAINED OPERATIONS
+        -- ใหม่: (x + y) * (x - y) = x^2 - y^2
         -- ============================================
-        
-        -- (x + y) * (x - y) = x^2 - y^2
         function(val, depth)
             if val >= 0 then
                 local x = math.floor(math.sqrt(val))
@@ -383,13 +295,7 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
         return Ast.NumberExpression(val)
     end
 
-    -- สุ่มเลือก generator
-    local generators = {}
-    for i, v in ipairs(self.ExpressionGenerators) do
-        generators[i] = v
-    end
-    generators = util.shuffle(generators)
-    
+    local generators = util.shuffle({unpack(self.ExpressionGenerators)});
     for i, generator in ipairs(generators) do
         local node = generator(val, depth + 1);
         if node then
