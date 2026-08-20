@@ -1,292 +1,119 @@
-local Step = require("prometheus.step");
-local Ast = require("prometheus.ast");
-local visitast = require("prometheus.visitast");
-local util = require("prometheus.util");
+local Step = require("prometheus.step")
+local Ast = require("prometheus.ast")
+local visitast = require("prometheus.visitast")
+local util = require("prometheus.util")
 
-local AstKind = Ast.AstKind;
-
-local NumbersToExpressions = Step:extend();
+local AstKind = Ast.AstKind
+local NumbersToExpressions = Step:extend()
 
 NumbersToExpressions.Description =
-    "This Step Converts number Literals to deeply randomized Expressions";
+    "Convert number literals into randomized arithmetic expressions"
 
 NumbersToExpressions.Name =
-    "Numbers To Expressions";
+    "Numbers To Expressions"
 
 NumbersToExpressions.SettingsDescriptor = {
     Treshold = {
         type = "number",
         default = 1,
         min = 0,
-        max = 1,
+        max = 1
     },
 
     InternalTreshold = {
         type = "number",
         default = 0.55,
         min = 0,
-        max = 0.95,
+        max = 0.9
     }
-};
+}
 
 function NumbersToExpressions:init(settings)
+    settings = settings or {}
 
-    self.MaxDepth = 12;
+    self.Treshold = settings.Treshold
+    if self.Treshold == nil then
+        self.Treshold = 1
+    end
+
+    self.InternalTreshold = settings.InternalTreshold
+    if self.InternalTreshold == nil then
+        self.InternalTreshold = 0.55
+    end
 
     self.ExpressionGenerators = {
 
         -- A + B
         function(val, depth)
-
-            local a =
-                math.random(-2^20, 2^20);
-
-            local b =
-                val - a;
+            local b = math.random(-2^18, 2^18)
+            local a = val - b
 
             if a + b ~= val then
-                return false;
+                return nil
             end
 
             return Ast.AddExpression(
                 self:CreateNumberExpression(a, depth),
                 self:CreateNumberExpression(b, depth),
                 false
-            );
+            )
         end,
 
         -- A - B
         function(val, depth)
-
-            local b =
-                math.random(-2^20, 2^20);
-
-            local a =
-                val + b;
+            local b = math.random(-2^18, 2^18)
+            local a = val + b
 
             if a - b ~= val then
-                return false;
+                return nil
             end
 
             return Ast.SubExpression(
                 self:CreateNumberExpression(a, depth),
                 self:CreateNumberExpression(b, depth),
                 false
-            );
+            )
         end,
 
-        -- (A + B) - B
+        -- A * B
         function(val, depth)
-
-            local b =
-                math.random(-100000, 100000);
-
-            local left =
-                Ast.AddExpression(
-                    self:CreateNumberExpression(
-                        val,
-                        depth
-                    ),
-                    self:CreateNumberExpression(
-                        b,
-                        depth
-                    ),
-                    false
-                );
-
-            return Ast.SubExpression(
-                left,
-                self:CreateNumberExpression(
-                    b,
-                    depth
-                ),
-                false
-            );
-        end,
-
-        -- (A - B) + B
-        function(val, depth)
-
-            local b =
-                math.random(-100000, 100000);
-
-            local left =
-                Ast.SubExpression(
-                    self:CreateNumberExpression(
-                        val,
-                        depth
-                    ),
-                    self:CreateNumberExpression(
-                        b,
-                        depth
-                    ),
-                    false
-                );
-
-            return Ast.AddExpression(
-                left,
-                self:CreateNumberExpression(
-                    b,
-                    depth
-                ),
-                false
-            );
-        end,
-
-        -- (A * B) / B
-        function(val, depth)
-
-            if val ~= math.floor(val) then
-                return false;
+            if val ~= math.floor(val) or val == 0 then
+                return nil
             end
 
-            local b =
-                math.random(2, 31);
+            local factors = {}
 
-            local mul =
-                Ast.MulExpression(
-                    self:CreateNumberExpression(
-                        val,
-                        depth
-                    ),
-                    self:CreateNumberExpression(
-                        b,
-                        depth
-                    ),
-                    false
-                );
-
-            return Ast.DivExpression(
-                mul,
-                self:CreateNumberExpression(
-                    b,
-                    depth
-                ),
-                false
-            );
-        end,
-
-        -- (A / B) * B
-        function(val, depth)
-
-            if val ~= math.floor(val) then
-                return false;
+            for f = 2, 12 do
+                if val % f == 0 then
+                    factors[#factors + 1] = f
+                end
             end
 
-            local b =
-                math.random(2, 31);
-
-            if val % b ~= 0 then
-                return false;
+            if #factors == 0 then
+                return nil
             end
 
-            local div =
-                Ast.DivExpression(
-                    self:CreateNumberExpression(
-                        val,
-                        depth
-                    ),
-                    self:CreateNumberExpression(
-                        b,
-                        depth
-                    ),
-                    false
-                );
+            local f =
+                factors[
+                    math.random(
+                        1,
+                        #factors
+                    )
+                ]
 
             return Ast.MulExpression(
-                div,
                 self:CreateNumberExpression(
-                    b,
+                    val / f,
+                    depth
+                ),
+                self:CreateNumberExpression(
+                    f,
                     depth
                 ),
                 false
-            );
-        end,
-
-        -- ((A + B) * C) - (B * C)
-        function(val, depth)
-
-            local b =
-                math.random(-10000, 10000);
-
-            local c =
-                math.random(2, 31);
-
-            local left =
-                Ast.MulExpression(
-                    self:CreateNumberExpression(
-                        val + b,
-                        depth
-                    ),
-                    self:CreateNumberExpression(
-                        c,
-                        depth
-                    ),
-                    false
-                );
-
-            local right =
-                Ast.MulExpression(
-                    self:CreateNumberExpression(
-                        b,
-                        depth
-                    ),
-                    self:CreateNumberExpression(
-                        c,
-                        depth
-                    ),
-                    false
-                );
-
-            return Ast.SubExpression(
-                left,
-                right,
-                false
-            );
-        end,
-
-        -- ((A - B) * C) + (B * C)
-        function(val, depth)
-
-            local b =
-                math.random(-10000, 10000);
-
-            local c =
-                math.random(2, 31);
-
-            local left =
-                Ast.MulExpression(
-                    self:CreateNumberExpression(
-                        val - b,
-                        depth
-                    ),
-                    self:CreateNumberExpression(
-                        c,
-                        depth
-                    ),
-                    false
-                );
-
-            local right =
-                Ast.MulExpression(
-                    self:CreateNumberExpression(
-                        b,
-                        depth
-                    ),
-                    self:CreateNumberExpression(
-                        c,
-                        depth
-                    ),
-                    false
-                );
-
-            return Ast.AddExpression(
-                left,
-                right,
-                false
-            );
+            )
         end
-    };
+    }
 end
 
 function NumbersToExpressions:CreateNumberExpression(
@@ -294,45 +121,45 @@ function NumbersToExpressions:CreateNumberExpression(
     depth
 )
 
-    if depth >= self.MaxDepth then
-        return Ast.NumberExpression(val);
+    if depth >= 4 then
+        return Ast.NumberExpression(val)
     end
 
     if
         depth > 0
         and math.random() >= self.InternalTreshold
     then
-        return Ast.NumberExpression(val);
+        return Ast.NumberExpression(val)
     end
 
-    -- ไม่ใช้ unpack / table.unpack
-    local generatorCopy = {};
+    -- ไม่ใช้ unpack
+    local generatorCopy = {}
 
     for i = 1, #self.ExpressionGenerators do
         generatorCopy[i] =
-            self.ExpressionGenerators[i];
+            self.ExpressionGenerators[i]
     end
 
+    -- shuffle โดยแก้ table เดิม
+    util.shuffle(generatorCopy)
+
     local generators =
-        util.shuffle(
-            generatorCopy
-        );
+        generatorCopy
 
     for _, generator in ipairs(generators) do
 
-        local ok, node =
-            pcall(
-                generator,
+        local node =
+            generator(
                 val,
                 depth + 1
-            );
+            )
 
-        if ok and node then
-            return node;
+        if node then
+            return node
         end
     end
 
-    return Ast.NumberExpression(val);
+    return Ast.NumberExpression(val)
 end
 
 function NumbersToExpressions:apply(ast)
@@ -340,27 +167,25 @@ function NumbersToExpressions:apply(ast)
     visitast(
         ast,
         nil,
-        function(node, data)
+        function(node)
 
-            if node.kind ==
+            if
+                node.kind ==
                 AstKind.NumberExpression
+                and
+                math.random()
+                <= self.Treshold
             then
 
-                if
-                    math.random()
-                    <= self.Treshold
-                then
-
-                    return self:CreateNumberExpression(
-                        node.value,
-                        0
-                    );
-                end
+                return self:CreateNumberExpression(
+                    node.value,
+                    0
+                )
             end
         end
-    );
+    )
 
-    return ast;
+    return ast
 end
 
-return NumbersToExpressions;
+return NumbersToExpressions
