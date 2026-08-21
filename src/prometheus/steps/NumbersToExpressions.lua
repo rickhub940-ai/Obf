@@ -29,40 +29,30 @@ NumbersToExpressions.SettingsDescriptor = {
         default = 0.2,
         min = 0,
         max = 0.8,
-    },
+    }
 }
 
 function NumbersToExpressions:init(settings)
-    self.ExpressionGenerators = {
+	self.ExpressionGenerators = {
         -- Addition
         function(val, depth)
-            local maxVal = math.min(math.abs(val) + 10, 2^10)
-            local val2 = math.random(1, math.floor(maxVal))
-            local diff = val - val2
-            if tonumber(tostring(diff)) + tonumber(tostring(val2)) == val then
-                return Ast.AddExpression(
-                    self:CreateNumberExpression(val2, depth),
-                    self:CreateNumberExpression(diff, depth),
-                    false
-                )
+            local val2 = math.random(-2^10, 2^10);
+            local diff = val - val2;
+            if tonumber(tostring(diff)) + tonumber(tostring(val2)) ~= val then
+                return false;
             end
-            return false
+            return Ast.AddExpression(self:CreateNumberExpression(val2, depth), self:CreateNumberExpression(diff, depth), false);
         end,
         -- Subtraction
         function(val, depth)
-            local maxVal = math.min(math.abs(val) + 20, 2^10)
-            local val2 = math.random(1, math.floor(maxVal))
-            local diff = val + val2
-            if tonumber(tostring(diff)) - tonumber(tostring(val2)) == val then
-                return Ast.SubExpression(
-                    self:CreateNumberExpression(diff, depth),
-                    self:CreateNumberExpression(val2, depth),
-                    false
-                )
+            local val2 = math.random(-2^10, 2^10);
+            local diff = val + val2;
+            if tonumber(tostring(diff)) - tonumber(tostring(val2)) ~= val then
+                return false;
             end
-            return false
+            return Ast.SubExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
         end,
-        -- Multiplication
+        -- Multiplication (เฉพาะเลขที่หารลงตัว)
         function(val, depth)
             if val == 0 then
                 return Ast.MulExpression(
@@ -72,12 +62,12 @@ function NumbersToExpressions:init(settings)
                 )
             end
             local absVal = math.abs(val)
-            if absVal < 2 then return false end
-            local maxA = math.min(absVal, 50)
+            if absVal < 4 then return false end
+            local maxA = math.min(absVal, 100)
             if maxA < 2 then return false end
             local a = math.random(2, math.floor(maxA))
             local b = val / a
-            if b == math.floor(b) and b ~= 0 and b ~= 1 then
+            if b == math.floor(b) and b ~= 0 and b ~= 1 and a ~= 1 then
                 return Ast.MulExpression(
                     self:CreateNumberExpression(a, depth + 1),
                     self:CreateNumberExpression(b, depth + 1),
@@ -206,12 +196,11 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
         return Ast.NumberExpression(val)
     end
 
-    local generators = util.shuffle({unpack(self.ExpressionGenerators)})
-    
+    local generators = util.shuffle({unpack(self.ExpressionGenerators)});
     for i, generator in ipairs(generators) do
-        local node = generator(val, depth + 1)
+        local node = generator(val, depth + 1);
         if node then
-            return node
+            return node;
         end
     end
 
@@ -219,25 +208,13 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 end
 
 function NumbersToExpressions:apply(ast)
-    local numbersToConvert = {}
-    
-    visitast(ast, nil, function(node, data)
+	visitast(ast, nil, function(node, data)
         if node.kind == AstKind.NumberExpression then
             if math.random() <= self.Treshold then
-                table.insert(numbersToConvert, node)
+                return self:CreateNumberExpression(node.value, 0);
             end
         end
     end)
-    
-    for _, node in ipairs(numbersToConvert) do
-        local oldValue = node.value
-        local depth = 0
-        local newNode = self:CreateNumberExpression(oldValue, depth)
-        
-        for key, value in pairs(newNode) do
-            node[key] = value
-        end
-    end
 end
 
 return NumbersToExpressions;
