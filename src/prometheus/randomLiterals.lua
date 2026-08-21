@@ -1,21 +1,49 @@
--- This Script is Part of the Prometheus Obfuscator by Levno_710
---
--- Library for Creating Random Literals
+-- RandomLiterals.lua
+-- Lua 5.1 compatible
 
 local Ast = require("prometheus.ast");
 local RandomStrings = require("prometheus.randomStrings");
 
 local RandomLiterals = {};
 
+local Symbols = {
+    "#",
+    "@",
+    "*",
+    "?",
+    "!",
+    "^"
+};
+
 local function callNameGenerator(generatorFunction, ...)
-    if(type(generatorFunction) == "table") then
+    if type(generatorFunction) == "table" then
         generatorFunction = generatorFunction.generateName;
     end
+
     return generatorFunction(...);
 end
 
+local function randomSymbols(min, max)
+    local count = math.random(min or 1, max or 3);
+    local result = {};
+
+    for i = 1, count do
+        result[i] = Symbols[math.random(1, #Symbols)];
+    end
+
+    return table.concat(result);
+end
+
 function RandomLiterals.String(pipeline)
-    return Ast.StringExpression(callNameGenerator(pipeline.namegenerator, math.random(1, 4096)));
+    local base = callNameGenerator(
+        pipeline.namegenerator,
+        math.random(1, 4096)
+    );
+
+    -- ตัวอย่าง: "aX7#@^"
+    local value = base .. randomSymbols(2, 5);
+
+    return Ast.StringExpression(value);
 end
 
 function RandomLiterals.Dictionary()
@@ -23,16 +51,19 @@ function RandomLiterals.Dictionary()
 end
 
 function RandomLiterals.Number()
-    return Ast.NumberExpression(math.random(-8388608, 8388607));
+    return Ast.NumberExpression(
+        math.random(-8388608, 8388607)
+    );
 end
 
 function RandomLiterals.Any(pipeline)
-    local type = math.random(1, 3);
-    if type == 1 then
+    local typeId = math.random(1, 3);
+
+    if typeId == 1 then
         return RandomLiterals.String(pipeline);
-    elseif type == 2 then
+    elseif typeId == 2 then
         return RandomLiterals.Number();
-    elseif type == 3 then
+    else
         return RandomLiterals.Dictionary();
     end
 end
