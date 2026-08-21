@@ -84,7 +84,7 @@ ConstantArray.SettingsDescriptor = {
 		name = "NoiseSymbols",
 		description = "Symbols to force into base64 alphabet for obfuscation",
 		type = "table",
-		default = {"#", "@", "*", "!", "?", "^", "$", "%"},
+		default = {"#", "@", "*", "!", "?", "^", "$", "%", "&", "~", "|", ":", ";", "<", ">", "=", "+", "/"},
 	};
 	Encoding = {
 		name = "Encoding",
@@ -110,41 +110,59 @@ function ConstantArray:init(settings)
 end
 
 function ConstantArray:buildNoisyAlphabet()
-	local symbols = self.NoiseSymbols or {"#", "@", "*", "!", "?", "^", "$", "%"}
-	local base = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-	local chars = {}
-	
-	-- Force noise symbols into alphabet first
-	for _, sym in ipairs(symbols) do
-		local found = false
-		for _, existing in ipairs(chars) do
-			if existing == sym then
-				found = true
-				break
-			end
-		end
-		if not found then
-			table.insert(chars, sym)
-		end
-	end
-	
-	-- Fill remaining with base alphabet (skip duplicates)
-	for i = 1, #base do
-		local c = base:sub(i, i)
-		local found = false
-		for _, existing in ipairs(chars) do
-			if existing == c then
-				found = true
-				break
-			end
-		end
-		if not found then
-			table.insert(chars, c)
-		end
-	end
-	
-	-- Shuffle for entropy
-	return table.concat(util.shuffle(chars))
+    local symbols = self.NoiseSymbols or {"#", "@", "*", "!", "?", "^", "$", "%", "&", "~", "|", ":", ";", "<", ">", "=", "+", "/"}
+    local base = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    local chars = {}
+    local used = {}
+    
+    -- แยก base เป็น list
+    local baseList = {}
+    for i = 1, #base do table.insert(baseList, base:sub(i, i)) end
+    
+    -- สุ่มสลับ baseList
+    for i = #baseList, 2, -1 do
+        local j = math.random(i)
+        baseList[i], baseList[j] = baseList[j], baseList[i]
+    end
+    
+    -- กระจาย symbols ทั่วๆ โดยแทรกระหว่าง base characters
+    local result = {}
+    local baseIndex = 1
+    local symbolIndex = 1
+    
+    -- สุ่มตำแหน่งที่จะใส่ symbols (ให้กระจายทั่วๆ)
+    local symbolPositions = {}
+    for i = 1, #symbols do
+        local pos = math.random(1, #baseList + 1)
+        table.insert(symbolPositions, pos)
+    end
+    table.sort(symbolPositions)
+    
+    -- สร้าง alphabet โดยแทรก symbols ตามตำแหน่งที่สุ่ม
+    local posIndex = 1
+    for i = 1, #baseList do
+        while posIndex <= #symbolPositions and symbolPositions[posIndex] <= i + (posIndex - 1) do
+            if symbolIndex <= #symbols then
+                table.insert(result, symbols[symbolIndex])
+                symbolIndex = symbolIndex + 1
+                posIndex = posIndex + 1
+            end
+        end
+        table.insert(result, baseList[i])
+    end
+    
+    while symbolIndex <= #symbols do
+        table.insert(result, symbols[symbolIndex])
+        symbolIndex = symbolIndex + 1
+    end
+    
+    -- สุ่มสลับเล็กน้อยเพื่อความมั่ว
+    for i = 1, #result do
+        local j = math.random(math.max(1, i - 3), math.min(#result, i + 3))
+        result[i], result[j] = result[j], result[i]
+    end
+    
+    return table.concat(result)
 end
 
 function ConstantArray:createArray()
