@@ -39,12 +39,12 @@ function NumbersToExpressions:init(settings)
             if val == 0 then
                 return Ast.MulExpression(
                     Ast.NumberExpression(0),
-                    Ast.NumberExpression(math.random(1, 2^16)),
+                    Ast.NumberExpression(math.random(1, 100)),
                     false
                 )
             end
             if math.abs(val) > 2^20 then return false end
-            local a = math.random(1, math.min(math.abs(val), 2^10))
+            local a = math.random(1, math.min(math.abs(val), 100))
             local b = val / a
             if b == math.floor(b) and b ~= 0 and b ~= 1 and a ~= 1 then
                 return Ast.MulExpression(
@@ -58,7 +58,7 @@ function NumbersToExpressions:init(settings)
         -- Division
         function(val, depth)
             if val == 0 then return false end
-            local a = math.random(1, 2^8)
+            local a = math.random(1, 50)
             local b = val * a
             if b == math.floor(b) and b ~= 0 then
                 return Ast.DivExpression(
@@ -93,7 +93,7 @@ function NumbersToExpressions:init(settings)
         -- Modulo
         function(val, depth)
             if val == 0 then return false end
-            local a = math.random(1, 2^8)
+            local a = math.random(1, 50)
             local b = val + a
             if b % a == val then
                 return Ast.ModExpression(
@@ -115,8 +115,8 @@ function NumbersToExpressions:init(settings)
         -- (a * b) + c
         function(val, depth)
             if depth > 3 then return false end
-            local a = math.random(1, 2^8)
-            local b = math.random(1, 2^8)
+            local a = math.random(1, 50)
+            local b = math.random(1, 50)
             local c = val - (a * b)
             if c == math.floor(c) then
                 return Ast.AddExpression(
@@ -134,8 +134,8 @@ function NumbersToExpressions:init(settings)
         -- (a * b) - c
         function(val, depth)
             if depth > 3 then return false end
-            local a = math.random(1, 2^8)
-            local b = math.random(1, 2^8)
+            local a = math.random(1, 50)
+            local b = math.random(1, 50)
             local c = (a * b) - val
             if c == math.floor(c) and c >= 0 then
                 return Ast.SubExpression(
@@ -153,9 +153,10 @@ function NumbersToExpressions:init(settings)
         -- (a + b) * c
         function(val, depth)
             if depth > 3 then return false end
-            local a = math.random(1, 2^4)
-            local b = math.random(1, 2^4)
-            local c = val / (a + b)
+            local a = math.random(1, 10)
+            local b = math.random(1, 10)
+            local sum = a + b
+            local c = val / sum
             if c == math.floor(c) and c ~= 0 then
                 return Ast.MulExpression(
                     Ast.AddExpression(
@@ -172,9 +173,10 @@ function NumbersToExpressions:init(settings)
         -- (a - b) * c
         function(val, depth)
             if depth > 3 then return false end
-            local a = math.random(1, 2^5)
+            local a = math.random(2, 20)
             local b = math.random(1, a - 1)
-            local c = val / (a - b)
+            local diff = a - b
+            local c = val / diff
             if c == math.floor(c) and c ~= 0 then
                 return Ast.MulExpression(
                     Ast.SubExpression(
@@ -252,8 +254,8 @@ function NumbersToExpressions:init(settings)
         -- a * b * c
         function(val, depth)
             if depth > 3 then return false end
-            local a = math.random(1, 2^4)
-            local b = math.random(1, 2^4)
+            local a = math.random(1, 10)
+            local b = math.random(1, 10)
             local c = val / (a * b)
             if c == math.floor(c) and c ~= 0 and c ~= 1 then
                 return Ast.MulExpression(
@@ -271,8 +273,8 @@ function NumbersToExpressions:init(settings)
         -- a / b + c
         function(val, depth)
             if depth > 3 then return false end
-            local a = math.random(1, 2^8)
-            local b = math.random(1, 2^4)
+            local a = math.random(1, 50)
+            local b = math.random(1, 10)
             local c = val - (a / b)
             if c == math.floor(c) and c >= 0 then
                 return Ast.AddExpression(
@@ -290,8 +292,8 @@ function NumbersToExpressions:init(settings)
         -- (a * b) % c
         function(val, depth)
             if depth > 3 then return false end
-            local a = math.random(1, 2^4)
-            local b = math.random(1, 2^4)
+            local a = math.random(1, 10)
+            local b = math.random(1, 10)
             local c = (a * b) - val
             if c > 0 then
                 return Ast.ModExpression(
