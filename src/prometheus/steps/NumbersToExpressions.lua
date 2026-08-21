@@ -34,62 +34,22 @@ NumbersToExpressions.SettingsDescriptor = {
 
 function NumbersToExpressions:init(settings)
 	self.ExpressionGenerators = {
-        -- Addition
-        function(val, depth)
-            local val2 = math.random(-100, 100);
+        function(val, depth) -- Addition
+            local val2 = math.random(-2^10, 2^10);
             local diff = val - val2;
             if tonumber(tostring(diff)) + tonumber(tostring(val2)) ~= val then
                 return false;
             end
             return Ast.AddExpression(self:CreateNumberExpression(val2, depth), self:CreateNumberExpression(diff, depth), false);
-        end,
-        -- Subtraction
-        function(val, depth)
-            local val2 = math.random(-100, 100);
+        end, 
+        function(val, depth) -- Subtraction
+            local val2 = math.random(-2^10, 2^10);
             local diff = val + val2;
             if tonumber(tostring(diff)) - tonumber(tostring(val2)) ~= val then
                 return false;
             end
             return Ast.SubExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
-        end,
-        -- Multiplication
-        function(val, depth)
-            if val == 0 then
-                return Ast.MulExpression(
-                    Ast.NumberExpression(0),
-                    Ast.NumberExpression(math.random(1, 100)),
-                    false
-                )
-            end
-            local absVal = math.abs(val)
-            if absVal < 4 then return false end
-            local maxA = math.min(absVal, 50)
-            if maxA < 2 then return false end
-            local a = math.random(2, maxA)
-            local b = val / a
-            if b == math.floor(b) and b ~= 0 and b ~= 1 and a ~= 1 then
-                return Ast.MulExpression(
-                    self:CreateNumberExpression(a, depth + 1),
-                    self:CreateNumberExpression(b, depth + 1),
-                    false
-                )
-            end
-            return false
-        end,
-        -- Division
-        function(val, depth)
-            if val == 0 then return false end
-            local a = math.random(2, 50)
-            local b = val * a
-            if b == math.floor(b) and b ~= 0 then
-                return Ast.DivExpression(
-                    self:CreateNumberExpression(b, depth + 1),
-                    self:CreateNumberExpression(a, depth + 1),
-                    false
-                )
-            end
-            return false
-        end,
+        end
     }
 end
 
