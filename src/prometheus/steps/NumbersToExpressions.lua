@@ -119,14 +119,16 @@ function NumbersToExpressions:init(settings)
             if root * root == val then
                 return Ast.PowExpression(
                     self:CreateNumberExpression(root, depth + 1),
-                    Ast.NumberExpression(2)
+                    Ast.NumberExpression(2),
+                    false
                 )
             end
             local root3 = math.floor(val^(1/3))
             if root3^3 == val then
                 return Ast.PowExpression(
                     self:CreateNumberExpression(root3, depth + 1),
-                    Ast.NumberExpression(3)
+                    Ast.NumberExpression(3),
+                    false
                 )
             end
             return false
@@ -145,11 +147,10 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        -- Unary Minus (ใช้ Subtraction แทน)
+        -- Negate (ใช้ NegateExpression)
         function(val, depth)
             if val == 0 then return false end
-            return Ast.SubExpression(
-                Ast.NumberExpression(0),
+            return Ast.NegateExpression(
                 self:CreateNumberExpression(-val, depth + 1),
                 false
             )
@@ -237,20 +238,6 @@ function NumbersToExpressions:init(settings)
             end
             return expr
         end,
-        -- Compare with ternary style
-        function(val, depth)
-            if depth > 5 then return false end
-            local a = math.random(1, 2^8)
-            local b = math.random(1, 2^8)
-            if (a + b) == val then
-                return Ast.AddExpression(
-                    self:CreateNumberExpression(a, depth + 1),
-                    self:CreateNumberExpression(b, depth + 1),
-                    false
-                )
-            end
-            return false
-        end,
     }
 end
 
@@ -286,11 +273,11 @@ function NumbersToExpressions:apply(ast)
         local oldValue = node.value
         local depth = 0
         local newNode = self:CreateNumberExpression(oldValue, depth)
-        node.kind = newNode.kind
-        node.left = newNode.left
-        node.right = newNode.right
-        node.value = newNode.value
-        node.operator = newNode.operator
+        
+        -- คัดลอกทุกฟิลด์จาก newNode ไปที่ node
+        for key, value in pairs(newNode) do
+            node[key] = value
+        end
     end
 end
 
