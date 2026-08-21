@@ -1,16 +1,13 @@
--- pipeline.lua
--- Configuration presets
-
 return {
     ["Minify"] = {
         LuaVersion = "Lua51";
         VarNamePrefix = "";
-        NameGenerator = "Mangled";
+        NameGenerator = "MangledShuffled";
         PrettyPrint = false;
         Seed = 0;
 
         Steps = {
-        }
+        };
     };
 
     ["Weak"] = {
@@ -22,11 +19,6 @@ return {
 
         Steps = {
             {
-                Name = "Vmify";
-                Settings = {};
-            };
-
-            {
                 Name = "ConstantArray";
                 Settings = {
                     Treshold = 1;
@@ -36,9 +28,10 @@ return {
 
             {
                 Name = "WrapInFunction";
-                Settings = {};
+                Settings = {
+                };
             };
-        }
+        };
     };
 
     ["Medium"] = {
@@ -50,24 +43,8 @@ return {
 
         Steps = {
             {
-                Name = "Vmify";
-                Settings = {};
-            };
-
-            {
                 Name = "EncryptStrings";
-                Settings = {};
-            };
-
-            {
-                Name = "AntiTamper";
-                Settings = {};
-            };
-
-            {
-                Name = "ProxifyLocals";
                 Settings = {
-                    LiteralType = "string";
                 };
             };
 
@@ -77,21 +54,23 @@ return {
                     Treshold = 1;
                     StringsOnly = true;
                     Shuffle = true;
-                    Rotate = true;
+                    Rotate = false;
                     LocalWrapperTreshold = 0;
                 };
             };
 
             {
                 Name = "NumbersToExpressions";
-                Settings = {};
+                Settings = {
+                };
             };
 
             {
                 Name = "WrapInFunction";
-                Settings = {};
+                Settings = {
+                };
             };
-        }
+        };
     };
 
     ["Strong"] = {
@@ -104,18 +83,13 @@ return {
         Steps = {
             {
                 Name = "EncryptStrings";
-                Settings = {};
+                Settings = {
+                };
             };
 
             {
                 Name = "Vmify";
-                Settings = {};
-            };
-
-            {
-                Name = "ProxifyLocals";
                 Settings = {
-                    LiteralType = "string";
                 };
             };
 
@@ -125,20 +99,22 @@ return {
                     Treshold = 1;
                     StringsOnly = true;
                     Shuffle = true;
-                    Rotate = true;
+                    Rotate = false;
                     LocalWrapperTreshold = 0;
                 };
             };
 
             {
                 Name = "NumbersToExpressions";
-                Settings = {};
+                Settings = {
+                };
             };
 
             {
                 Name = "WrapInFunction";
-                Settings = {};
+                Settings = {
+                };
             };
-        }
+        };
     };
 }
