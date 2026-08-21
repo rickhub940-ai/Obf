@@ -6,20 +6,22 @@ local util     = require("prometheus.util")
 local Parser   = require("prometheus.parser")
 local enums = require("prometheus.enums")
 
+-- สร้าง Step และระบุว่าพร้อมรันใช้งาน (ไม่มองเป็น Abstract Class)
 local ConstantArray = Step:extend("ConstantArray")
+ConstantArray.IsAbstract = false
 
-ConstantArray.Description = "Packs all constants into a unified encrypted array and decodes them dynamically at runtime with NoiseSymbols."
+ConstantArray.Description = "Packs all constants into a unified array and decodes them with NoiseSymbols."
 
 ConstantArray.Settings = {
     NoiseSymbols = { "#", "@", "*", "!", "?", "^", "$", "%" }
 }
 
--- 1. ฟังก์ชันสร้าง Alphabet 64 ตัวอักษรที่มี NoiseSymbols ปนอยู่ด้วยเสมอ
+-- ฟังก์ชันสร้าง Custom Base64 Alphabet ขนาด 64 ตัวอักษร
 local function generateAlphabet(noiseList)
     local alphabetMap = {}
     local customAlphabet = {}
 
-    -- แทรก NoiseSymbols เข้าไปก่อน
+    -- 1. ยัด NoiseSymbols เข้าไปก่อน
     if noiseList then
         for _, symbol in ipairs(noiseList) do
             if not alphabetMap[symbol] and #customAlphabet < 64 then
@@ -29,7 +31,7 @@ local function generateAlphabet(noiseList)
         end
     end
 
-    -- เติม Alphanumeric (+/) ที่เหลือให้ครบ 64 ตัวพอดี
+    -- 2. เติมตัวอักษร Alphanumeric (+/) ที่เหลือให้ครบ 64 ตัวอักษร
     local defaultChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
     for i = 1, #defaultChars do
         local char = defaultChars:sub(i, i)
@@ -45,17 +47,17 @@ end
 function ConstantArray:apply(ast, pipeline)
     local noiseSymbols = self.Settings.NoiseSymbols or { "#", "@", "*", "!", "?", "^", "$", "%" }
     
-    -- ดึง Alphabet ที่ใส่ Noise แล้วจัดการ Shuffle ลำดับ
+    -- สร้างและ shuffle alphabet ที่มี noise ปนอยู่ด้วย
     local baseAlphabet = generateAlphabet(noiseSymbols)
-    local alphabet = util.shuffleString(baseAlphabet)
+    self.base64chars = util.shuffleString(baseAlphabet)
 
-    -- สร้าง Lookup Table สำหรับ Encode ฝั่ง Compiler
+    -- Lookup table สำหรับแมปตำแหน่งตัวอักษรฝั่ง Compiler
     local charToPos = {}
-    for i = 1, #alphabet do
-        charToPos[i - 1] = alphabet:sub(i, i)
+    for i = 1, #self.base64chars do
+        charToPos[i - 1] = self.base64chars:sub(i, i)
     end
 
-    -- 2. Base64 Custom Encoder (ใช้อัลกอริทึมแมปเข้า alphabet ชุดใหม่)
+    -- Base64 Custom Encoder
     local function customBase64Encode(data)
         local result = {}
         local len = #data
@@ -89,7 +91,7 @@ function ConstantArray:apply(ast, pipeline)
         return table.concat(result)
     end
 
-    -- 3. รวบรวม Constants ทั้งหมดจาก AST
+    -- รวบรวม Constants ใน AST
     local constantsList = {}
     local constantIndices = {}
 
@@ -107,11 +109,10 @@ function ConstantArray:apply(ast, pipeline)
         return ast
     end
 
-    -- รวม Constant ทั้งหมดเป็น String Blob ใหญ่แล้วทำการ Encode
     local rawBlob = table.concat(constantsList, "\0")
     local encodedBlob = customBase64Encode(rawBlob)
 
-    -- 4. สร้าง Runtime Decoder AST Code ฉีดเข้าไปครอบสคริปต์
+    -- ฉีด Runtime Decoder Loader ลงใน AST สไตล์ Prometheus
     local decoderCode = string.format([[
         local alphabet = %q
         local lookup = {}
@@ -148,11 +149,9 @@ function ConstantArray:apply(ast, pipeline)
         for item in string.gmatch(rawData, "[^\0]+") do
             table.insert(constantsArray, item)
         end
-    ]], alphabet, encodedBlob)
+    ]], self.base64chars, encodedBlob)
 
     local loaderAst = Parser:parse(decoderCode)
-
-    -- แทรก Loader เข้าไปในส่วนบนสุดของ AST
     table.insert(ast.body.statements, 1, loaderAst)
 
     return ast
