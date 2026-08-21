@@ -52,7 +52,7 @@ function NumbersToExpressions:init(settings)
             end
             return Ast.SubExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
         end,
-        -- Multiplication (เฉพาะเลขที่หารลงตัว)
+        -- Multiplication (เฉพาะเลขที่หารลงตัวเท่านั้น)
         function(val, depth)
             if val == 0 then
                 return Ast.MulExpression(
@@ -63,9 +63,9 @@ function NumbersToExpressions:init(settings)
             end
             local absVal = math.abs(val)
             if absVal < 4 then return false end
-            local maxA = math.min(absVal, 100)
+            local maxA = math.min(absVal, 50)
             if maxA < 2 then return false end
-            local a = math.random(2, math.floor(maxA))
+            local a = math.random(2, maxA)
             local b = val / a
             if b == math.floor(b) and b ~= 0 and b ~= 1 and a ~= 1 then
                 return Ast.MulExpression(
@@ -76,123 +76,11 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        -- Division
-        function(val, depth)
-            if val == 0 then return false end
-            local a = math.random(2, 50)
-            local b = val * a
-            if b == math.floor(b) and b ~= 0 then
-                return Ast.DivExpression(
-                    self:CreateNumberExpression(b, depth + 1),
-                    self:CreateNumberExpression(a, depth + 1),
-                    false
-                )
-            end
-            return false
-        end,
-        -- (a * b) + c
-        function(val, depth)
-            if depth > 3 then return false end
-            local a = math.random(2, 20)
-            local b = math.random(2, 20)
-            local c = val - (a * b)
-            if c == math.floor(c) then
-                return Ast.AddExpression(
-                    Ast.MulExpression(
-                        self:CreateNumberExpression(a, depth + 1),
-                        self:CreateNumberExpression(b, depth + 1),
-                        false
-                    ),
-                    self:CreateNumberExpression(c, depth + 1),
-                    false
-                )
-            end
-            return false
-        end,
-        -- (a * b) - c
-        function(val, depth)
-            if depth > 3 then return false end
-            local a = math.random(2, 20)
-            local b = math.random(2, 20)
-            local c = (a * b) - val
-            if c == math.floor(c) and c >= 0 then
-                return Ast.SubExpression(
-                    Ast.MulExpression(
-                        self:CreateNumberExpression(a, depth + 1),
-                        self:CreateNumberExpression(b, depth + 1),
-                        false
-                    ),
-                    self:CreateNumberExpression(c, depth + 1),
-                    false
-                )
-            end
-            return false
-        end,
-        -- (a + b) * c
-        function(val, depth)
-            if depth > 3 then return false end
-            local a = math.random(1, 10)
-            local b = math.random(1, 10)
-            local sum = a + b
-            local c = val / sum
-            if c == math.floor(c) and c ~= 0 then
-                return Ast.MulExpression(
-                    Ast.AddExpression(
-                        self:CreateNumberExpression(a, depth + 1),
-                        self:CreateNumberExpression(b, depth + 1),
-                        false
-                    ),
-                    self:CreateNumberExpression(c, depth + 1),
-                    false
-                )
-            end
-            return false
-        end,
-        -- (a - b) * c
-        function(val, depth)
-            if depth > 3 then return false end
-            local a = math.random(3, 20)
-            local b = math.random(1, a - 1)
-            local diff = a - b
-            local c = val / diff
-            if c == math.floor(c) and c ~= 0 then
-                return Ast.MulExpression(
-                    Ast.SubExpression(
-                        self:CreateNumberExpression(a, depth + 1),
-                        self:CreateNumberExpression(b, depth + 1),
-                        false
-                    ),
-                    self:CreateNumberExpression(c, depth + 1),
-                    false
-                )
-            end
-            return false
-        end,
-        -- a * b * c
-        function(val, depth)
-            if depth > 3 then return false end
-            local a = math.random(2, 10)
-            local b = math.random(2, 10)
-            local ab = a * b
-            local c = val / ab
-            if c == math.floor(c) and c ~= 0 and c ~= 1 then
-                return Ast.MulExpression(
-                    Ast.MulExpression(
-                        self:CreateNumberExpression(a, depth + 1),
-                        self:CreateNumberExpression(b, depth + 1),
-                        false
-                    ),
-                    self:CreateNumberExpression(c, depth + 1),
-                    false
-                )
-            end
-            return false
-        end,
     }
 end
 
 function NumbersToExpressions:CreateNumberExpression(val, depth)
-    if depth > 0 and math.random() >= self.InternalTreshold or depth > 12 then
+    if depth > 0 and math.random() >= self.InternalTreshold or depth > 15 then
         return Ast.NumberExpression(val)
     end
 
