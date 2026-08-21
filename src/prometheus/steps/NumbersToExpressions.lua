@@ -145,11 +145,13 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        -- Unary Minus
+        -- Unary Minus (ใช้ Subtraction แทน)
         function(val, depth)
             if val == 0 then return false end
-            return Ast.UnaryMinusExpression(
-                self:CreateNumberExpression(-val, depth + 1)
+            return Ast.SubExpression(
+                Ast.NumberExpression(0),
+                self:CreateNumberExpression(-val, depth + 1),
+                false
             )
         end,
         -- Nested (a * b) + c
