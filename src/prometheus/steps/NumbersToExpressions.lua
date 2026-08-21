@@ -36,7 +36,7 @@ function NumbersToExpressions:init(settings)
 	self.ExpressionGenerators = {
         -- Addition
         function(val, depth)
-            local val2 = math.random(-2^10, 2^10);
+            local val2 = math.random(-100, 100);
             local diff = val - val2;
             if tonumber(tostring(diff)) + tonumber(tostring(val2)) ~= val then
                 return false;
@@ -45,14 +45,14 @@ function NumbersToExpressions:init(settings)
         end,
         -- Subtraction
         function(val, depth)
-            local val2 = math.random(-2^10, 2^10);
+            local val2 = math.random(-100, 100);
             local diff = val + val2;
             if tonumber(tostring(diff)) - tonumber(tostring(val2)) ~= val then
                 return false;
             end
             return Ast.SubExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
         end,
-        -- Multiplication (เฉพาะเลขที่หารลงตัวเท่านั้น)
+        -- Multiplication
         function(val, depth)
             if val == 0 then
                 return Ast.MulExpression(
@@ -71,6 +71,20 @@ function NumbersToExpressions:init(settings)
                 return Ast.MulExpression(
                     self:CreateNumberExpression(a, depth + 1),
                     self:CreateNumberExpression(b, depth + 1),
+                    false
+                )
+            end
+            return false
+        end,
+        -- Division
+        function(val, depth)
+            if val == 0 then return false end
+            local a = math.random(2, 50)
+            local b = val * a
+            if b == math.floor(b) and b ~= 0 then
+                return Ast.DivExpression(
+                    self:CreateNumberExpression(b, depth + 1),
+                    self:CreateNumberExpression(a, depth + 1),
                     false
                 )
             end
