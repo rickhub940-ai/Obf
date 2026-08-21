@@ -29,87 +29,240 @@ NumbersToExpressions.SettingsDescriptor = {
         default = 0.2,
         min = 0,
         max = 0.8,
-    }
+    },
+    Complexity = {
+        name = "Complexity",
+        description = "How complex the expressions should be (1-5)",
+        type = "number",
+        default = 3,
+        min = 1,
+        max = 5,
+    },
 }
 
 function NumbersToExpressions:init(settings)
-	self.ExpressionGenerators = {
-        function(val, depth) -- Addition
-            local val2 = math.random(-2^20, 2^20);
-            local diff = val - val2;
+    self.ExpressionGenerators = {
+        -- Addition
+        function(val, depth)
+            local val2 = math.random(-2^20, 2^20)
+            local diff = val - val2
             if tonumber(tostring(diff)) + tonumber(tostring(val2)) ~= val then
-                return false;
+                return false
             end
-            return Ast.AddExpression(self:CreateNumberExpression(val2, depth), self:CreateNumberExpression(diff, depth), false);
-        end, 
-        function(val, depth) -- Subtraction
-            local val2 = math.random(-2^20, 2^20);
-            local diff = val + val2;
+            return Ast.AddExpression(self:CreateNumberExpression(val2, depth), self:CreateNumberExpression(diff, depth), false)
+        end,
+        -- Subtraction
+        function(val, depth)
+            local val2 = math.random(-2^20, 2^20)
+            local diff = val + val2
             if tonumber(tostring(diff)) - tonumber(tostring(val2)) ~= val then
-                return false;
+                return false
             end
-            return Ast.SubExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false);
+            return Ast.SubExpression(self:CreateNumberExpression(diff, depth), self:CreateNumberExpression(val2, depth), false)
         end,
-        function(val, depth) -- Multiplication / Division
+        -- Multiplication
+        function(val, depth)
             if val == 0 then
-                return false;
+                return Ast.MulExpression(
+                    self:CreateNumberExpression(0, depth + 1),
+                    self:CreateNumberExpression(math.random(1, 2^16), depth + 1),
+                    false
+                )
             end
-            -- pick a small nonzero factor so that val / factor stays exact
-            local factors = {2, 3, 4, 5, 6, 7, 8, 9, 10, 12};
-            local factor = factors[math.random(1, #factors)];
-            if math.random() < 0.5 then
-                -- val = (val * factor) / factor
-                local scaled = val * factor;
-                if tonumber(tostring(scaled)) / factor ~= val then
-                    return false;
+            local factors = {}
+            local temp = math.abs(val)
+            for i = 2, 2^8 do
+                while temp % i == 0 do
+                    table.insert(factors, i)
+                    temp = temp / i
+                    if temp == 1 then break end
                 end
-                return Ast.DivExpression(self:CreateNumberExpression(scaled, depth), self:CreateNumberExpression(factor, depth), false);
-            else
-                -- val = (val / factor) * factor, only if it divides evenly
-                if val % factor ~= 0 then
-                    return false;
-                end
-                local divided = val / factor;
-                if tonumber(tostring(divided)) * factor ~= val then
-                    return false;
-                end
-                return Ast.MulExpression(self:CreateNumberExpression(divided, depth), self:CreateNumberExpression(factor, depth), false);
+                if temp == 1 then break end
             end
+            if #factors >= 2 then
+                local a = 1
+                local b = 1
+                for i = 1, #factors do
+                    if i % 2 == 1 then
+                        a = a * factors[i]
+                    else
+                        b = b * factors[i]
+                    end
+                end
+                if val < 0 then a = -a end
+                return Ast.MulExpression(
+                    self:CreateNumberExpression(a, depth + 1),
+                    self:CreateNumberExpression(b, depth + 1),
+                    false
+                )
+            end
+            return false
         end,
-        function(val, depth) -- Modulo
-            -- val = (val + k * m) % m, choose m large enough that k*m + val fits safely
-            local m = math.random(2^16, 2^20);
-            local k = math.random(1, 2^10);
-            local shifted = val + (k * m);
-            if (tonumber(tostring(shifted)) % m) ~= (val % m) then
-                return false;
+        -- Division
+        function(val, depth)
+            if val == 0 then return false end
+            local val2 = math.random(1, 2^10)
+            local diff = val * val2
+            if diff % val2 == 0 then
+                return Ast.DivExpression(
+                    self:CreateNumberExpression(diff, depth + 1),
+                    self:CreateNumberExpression(val2, depth + 1),
+                    false
+                )
             end
-            if val < 0 or val % m ~= val then
-                -- only safe when val is already the canonical remainder for m
-                return false;
-            end
-            return Ast.ModExpression(self:CreateNumberExpression(shifted, depth), self:CreateNumberExpression(m, depth), false);
+            return false
         end,
-        function(val, depth) -- Negate-wrap
-            local negated = -val;
-            if tonumber(tostring(-negated)) ~= val then
-                return false;
+        -- Power (x^2, x^3)
+        function(val, depth)
+            if val < 0 then return false end
+            local root = math.floor(math.sqrt(val))
+            if root * root == val then
+                return Ast.PowExpression(
+                    self:CreateNumberExpression(root, depth + 1),
+                    Ast.NumberExpression(2)
+                )
             end
-            return Ast.NegateExpression(self:CreateNumberExpression(negated, depth), false);
-        end
+            local root3 = math.floor(val^(1/3))
+            if root3^3 == val then
+                return Ast.PowExpression(
+                    self:CreateNumberExpression(root3, depth + 1),
+                    Ast.NumberExpression(3)
+                )
+            end
+            return false
+        end,
+        -- Modulo
+        function(val, depth)
+            if val == 0 then return false end
+            local val2 = math.random(1, 2^10)
+            local diff = val + val2
+            if diff % val2 == val then
+                return Ast.ModExpression(
+                    self:CreateNumberExpression(diff, depth + 1),
+                    self:CreateNumberExpression(val2, depth + 1),
+                    false
+                )
+            end
+            return false
+        end,
+        -- Unary Minus
+        function(val, depth)
+            if val == 0 then return false end
+            return Ast.UnaryMinusExpression(
+                self:CreateNumberExpression(-val, depth + 1)
+            )
+        end,
+        -- Nested (a * b) + c
+        function(val, depth)
+            if depth > 4 then return false end
+            local a = math.random(1, 2^8)
+            local b = math.random(1, 2^8)
+            local c = val - (a * b)
+            if c % 1 == 0 then
+                return Ast.AddExpression(
+                    Ast.MulExpression(
+                        self:CreateNumberExpression(a, depth + 1),
+                        self:CreateNumberExpression(b, depth + 1),
+                        false
+                    ),
+                    self:CreateNumberExpression(c, depth + 1),
+                    false
+                )
+            end
+            return false
+        end,
+        -- Nested (a * b) / c
+        function(val, depth)
+            if depth > 4 then return false end
+            local a = math.random(1, 2^8)
+            local b = math.random(1, 2^8)
+            local c = (a * b) / val
+            if c % 1 == 0 and c ~= 0 then
+                return Ast.DivExpression(
+                    Ast.MulExpression(
+                        self:CreateNumberExpression(a, depth + 1),
+                        self:CreateNumberExpression(b, depth + 1),
+                        false
+                    ),
+                    self:CreateNumberExpression(c, depth + 1),
+                    false
+                )
+            end
+            return false
+        end,
+        -- Nested (a + b) * (c + d)
+        function(val, depth)
+            if depth > 4 then return false end
+            local a = math.random(1, 2^4)
+            local b = math.random(1, 2^4)
+            local c = math.random(1, 2^4)
+            local d = math.random(1, 2^4)
+            if (a + b) * (c + d) == val then
+                return Ast.MulExpression(
+                    Ast.AddExpression(
+                        self:CreateNumberExpression(a, depth + 1),
+                        self:CreateNumberExpression(b, depth + 1),
+                        false
+                    ),
+                    Ast.AddExpression(
+                        self:CreateNumberExpression(c, depth + 1),
+                        self:CreateNumberExpression(d, depth + 1),
+                        false
+                    ),
+                    false
+                )
+            end
+            return false
+        end,
+        -- Long chain: (((a + b) + c) + d)
+        function(val, depth)
+            if depth > 4 then return false end
+            local count = math.random(2, 5)
+            local numbers = {}
+            local sum = 0
+            for i = 1, count - 1 do
+                numbers[i] = math.random(1, 2^4)
+                sum = sum + numbers[i]
+            end
+            numbers[count] = val - sum
+            local expr = self:CreateNumberExpression(numbers[1], depth + 1)
+            for i = 2, count do
+                expr = Ast.AddExpression(
+                    expr,
+                    self:CreateNumberExpression(numbers[i], depth + 1),
+                    false
+                )
+            end
+            return expr
+        end,
+        -- Compare with ternary style
+        function(val, depth)
+            if depth > 5 then return false end
+            local a = math.random(1, 2^8)
+            local b = math.random(1, 2^8)
+            if (a + b) == val then
+                return Ast.AddExpression(
+                    self:CreateNumberExpression(a, depth + 1),
+                    self:CreateNumberExpression(b, depth + 1),
+                    false
+                )
+            end
+            return false
+        end,
     }
 end
 
 function NumbersToExpressions:CreateNumberExpression(val, depth)
-    if depth > 0 and math.random() >= self.InternalTreshold or depth > 15 then
+    if depth > 0 and math.random() >= self.InternalTreshold or depth > 20 then
         return Ast.NumberExpression(val)
     end
 
-    local generators = util.shuffle({unpack(self.ExpressionGenerators)});
+    local generators = util.shuffle({unpack(self.ExpressionGenerators)})
+    
     for i, generator in ipairs(generators) do
-        local node = generator(val, depth + 1);
+        local node = generator(val, depth + 1)
         if node then
-            return node;
+            return node
         end
     end
 
@@ -117,13 +270,26 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 end
 
 function NumbersToExpressions:apply(ast)
-	visitast(ast, nil, function(node, data)
+    local numbersToConvert = {}
+    
+    visitast(ast, nil, function(node, data)
         if node.kind == AstKind.NumberExpression then
             if math.random() <= self.Treshold then
-                return self:CreateNumberExpression(node.value, 0);
+                table.insert(numbersToConvert, node)
             end
         end
     end)
+    
+    for _, node in ipairs(numbersToConvert) do
+        local oldValue = node.value
+        local depth = 0
+        local newNode = self:CreateNumberExpression(oldValue, depth)
+        node.kind = newNode.kind
+        node.left = newNode.left
+        node.right = newNode.right
+        node.value = newNode.value
+        node.operator = newNode.operator
+    end
 end
 
 return NumbersToExpressions;
