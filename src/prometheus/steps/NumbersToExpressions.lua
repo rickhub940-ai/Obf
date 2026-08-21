@@ -198,25 +198,6 @@ function NumbersToExpressions:init(settings)
             end
             return false
         end,
-        -- a / b + c
-        function(val, depth)
-            if depth > 3 then return false end
-            local a = math.random(2, 30)
-            local b = math.random(2, 10)
-            local c = val - (a / b)
-            if c == math.floor(c) and c >= 0 then
-                return Ast.AddExpression(
-                    Ast.DivExpression(
-                        self:CreateNumberExpression(a, depth + 1),
-                        self:CreateNumberExpression(b, depth + 1),
-                        false
-                    ),
-                    self:CreateNumberExpression(c, depth + 1),
-                    false
-                )
-            end
-            return false
-        end,
     }
 end
 
