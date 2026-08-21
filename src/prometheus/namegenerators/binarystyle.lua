@@ -8,7 +8,7 @@
 local PREFIX = "_0B";
 
 return function(id, scope)
-	local length = math.random(10, 24);
+	local length = math.random(10, 15);
 	local bits = {};
 	for i = 1, length do
 		bits[i] = tostring(math.random(0, 1));
