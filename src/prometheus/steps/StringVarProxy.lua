@@ -116,7 +116,7 @@ function StringVarProxy:apply(ast, pipeline)
             end
         end
     end, function(node, data)
-        -- Transform variable reads/writes
+        -- Transform variable reads (RHS) -> IndexExpression
         if node.kind == AstKind.VariableExpression then
             local sc = node.scope
             while sc do
@@ -134,6 +134,7 @@ function StringVarProxy:apply(ast, pipeline)
         end
 
         -- Transform: local x = val  ->  _["key"] = val
+        -- Use AssignmentIndexing (NOT IndexExpression) for LHS!
         if node.kind == AstKind.LocalVariableDeclaration then
             local sc = data.scope
             local info = scopeInfo[sc]
@@ -145,7 +146,7 @@ function StringVarProxy:apply(ast, pipeline)
                         local val = node.values and node.values[i] or Ast.ConstantNode(nil)
                         data.scope:addReferenceToHigherScope(info.tableVar.scope, info.tableVar.id)
                         table.insert(assigns, Ast.AssignmentStatement(
-                            { Ast.IndexExpression(
+                            { Ast.AssignmentIndexing(
                                 Ast.VariableExpression(info.tableVar.scope, info.tableVar.id),
                                 Ast.StringExpression(key)
                             )},
@@ -162,6 +163,7 @@ function StringVarProxy:apply(ast, pipeline)
         end
 
         -- Transform: local function f()  ->  _["key"] = function()
+        -- Use AssignmentIndexing for LHS!
         if node.kind == AstKind.LocalFunctionDeclaration then
             local sc = data.scope
             local info = scopeInfo[sc]
@@ -169,7 +171,7 @@ function StringVarProxy:apply(ast, pipeline)
                 local key = info.mappings[node.id]
                 data.scope:addReferenceToHigherScope(info.tableVar.scope, info.tableVar.id)
                 return Ast.AssignmentStatement(
-                    { Ast.IndexExpression(
+                    { Ast.AssignmentIndexing(
                         Ast.VariableExpression(info.tableVar.scope, info.tableVar.id),
                         Ast.StringExpression(key)
                     )},
