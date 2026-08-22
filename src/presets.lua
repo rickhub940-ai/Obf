@@ -82,10 +82,6 @@ return {
 
         Steps = {
             {
-                Name = "StringVarProxy";
-                Settings = {};
-            };
-            {
                 Name = "EncryptStrings";
                 Settings = {
                 };
