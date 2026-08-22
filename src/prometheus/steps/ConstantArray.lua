@@ -84,7 +84,13 @@ ConstantArray.SettingsDescriptor = {
 		name = "NoiseSymbols",
 		description = "Symbols to force into base64 alphabet for obfuscation",
 		type = "table",
-		default = {"#", "@", "*", "!", "?", "^", "$", "%", "&", "~", "|", ":", ";", "<", ">", "=", "+", "/"},
+		-- NOTE: "=" must NEVER appear here. It is the reserved padding sentinel used by
+		-- the decode routine (see addDecodeCode/elseif char == "="). If "=" ends up in
+		-- the alphabet, lookup["="] becomes truthy and the decoder can no longer tell
+		-- real padding from data, corrupting the tail of every string whose length is
+		-- not a multiple of 3. "\"", "'", and "\\" are also excluded because the
+		-- unparser escapes them instead of emitting them literally.
+		default = {"#", "@", "*", "!", "?", "^", "$", "%", "&", "~", "|", ":", ";", "<", ">", "+", "/"},
 	};
 	Encoding = {
 		name = "Encoding",
@@ -109,14 +115,43 @@ function ConstantArray:init(settings)
 	
 end
 
+-- Characters that must never enter the alphabet:
+-- "="            -> reserved padding sentinel, see comment on NoiseSymbols above
+-- "\"", "'", "\\" -> get escaped by the unparser instead of emitted literally
+-- whitespace/control chars -> same escaping issue, plus ugly/ambiguous output
+local RESERVED_CHARS = {
+    ["="] = true, ["\""] = true, ["'"] = true, ["\\"] = true,
+}
+local function isSafeAlphabetChar(c)
+    if #c ~= 1 then return false end
+    if RESERVED_CHARS[c] then return false end
+    local byte = c:byte()
+    return byte >= 0x21 and byte <= 0x7E; -- printable, non-space ASCII only
+end
+
 function ConstantArray:buildNoisyAlphabet()
-    local symbols = self.NoiseSymbols or {"#", "@", "*", "!", "?", "^", "$", "%", "&", "~", "|", ":", ";", "<", ">", "=", "+", "/"}
+    local rawSymbols = self.NoiseSymbols or {"#", "@", "*", "!", "?", "^", "$", "%", "&", "~", "|", ":", ";", "<", ">", "+", "/"}
     local base = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     local chars = {}
     local used = {}
-    
+
     local baseList = {}
-    for i = 1, #base do table.insert(baseList, base:sub(i, i)) end
+    for i = 1, #base do
+        local c = base:sub(i, i);
+        used[c] = true;
+        table.insert(baseList, c)
+    end
+
+    -- Filter user-provided symbols: drop anything reserved, non-printable,
+    -- multi-char, or already used (dedupe) so the resulting alphabet can
+    -- never contain a repeated or unsafe character.
+    local symbols = {}
+    for _, s in ipairs(rawSymbols) do
+        if isSafeAlphabetChar(s) and not used[s] then
+            used[s] = true;
+            table.insert(symbols, s);
+        end
+    end
     
     for i = #baseList, 2, -1 do
         local j = math.random(i)
