@@ -1,5 +1,5 @@
 -- StringVarProxy Step for Prometheus Obfuscator
--- Converts local variables to string-indexed table access
+-- Converts local variables to string-indexed table access with special characters
 -- Uses a single short-named table per scope chain (upvalue for nested)
 -- No _G. No long random table names. Keys use special chars + English mixed case.
 
@@ -27,6 +27,10 @@ local function randomKey(length)
         chars[i] = KEY_CHARS:sub(idx, idx)
     end
     return table.concat(chars)
+end
+
+-- FIX: Override abstract init to prevent "Abstract Steps cannot be Created" error
+function StringVarProxy:init()
 end
 
 function StringVarProxy:apply(ast, pipeline)
