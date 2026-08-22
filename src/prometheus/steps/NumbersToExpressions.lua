@@ -1,10 +1,7 @@
 -- This Script is Part of the Prometheus Obfuscator by Levno_710
 --
 -- NumbersToExpressions.lua
---
--- Converts Number Literals to deeply nested, mathematically correct
--- but extremely hard-to-reverse expressions.
--- Pure arithmetic only - no tables, no strings, no side effects.
+-- Pure arithmetic only. Skips integers 1-20 to protect table indices.
 unpack = unpack or table.unpack;
 
 local Step = require("prometheus.step");
@@ -26,11 +23,10 @@ NumbersToExpressions.SettingsDescriptor = {
         type = "number", default = 0.15, min = 0, max = 0.8,
     },
     MaxDepth = {
-        type = "number", default = 8, min = 2, max = 20,
+        type = "number", default = 6, min = 2, max = 20,
     }
 }
 
--- Safe float comparison
 local function approxEqual(a, b)
     if type(a) ~= "number" or type(b) ~= "number" then return false end
     if a ~= a or b ~= b then return false end
@@ -38,7 +34,6 @@ local function approxEqual(a, b)
     return tostring(a) == tostring(b)
 end
 
--- Extended GCD for modular inverse
 local function egcd(a, b)
     if b == 0 then return a, 1, 0 end
     local g, x1, y1 = egcd(b, a % b)
@@ -69,7 +64,6 @@ local function randomInt(a, b)
     return math.floor(a + randomFloat() * (b - a + 1))
 end
 
--- Custom shuffle
 local function shuffle(t)
     local n = #t
     for i = n, 2, -1 do
@@ -83,12 +77,12 @@ function NumbersToExpressions:init(settings)
     settings = settings or {}
     self.Treshold = settings.Treshold or 1
     self.InternalTreshold = settings.InternalTreshold or 0.15
-    self.MaxDepth = settings.MaxDepth or 8
+    self.MaxDepth = settings.MaxDepth or 6
 
     self.ExpressionGenerators = {
-        -- 1. Addition: val = a + b
+        -- 1. Addition
         function(val, depth)
-            local a = randomInt(-200000, 200000)
+            local a = randomInt(-100000, 100000)
             local b = val - a
             if not approxEqual(a + b, val) then return false end
             return Ast.AddExpression(
@@ -98,9 +92,9 @@ function NumbersToExpressions:init(settings)
             )
         end,
 
-        -- 2. Subtraction: val = a - b
+        -- 2. Subtraction
         function(val, depth)
-            local a = randomInt(-200000, 200000)
+            local a = randomInt(-100000, 100000)
             local b = a - val
             if not approxEqual(a - b, val) then return false end
             return Ast.SubExpression(
@@ -110,13 +104,13 @@ function NumbersToExpressions:init(settings)
             )
         end,
 
-        -- 3. Multiplication: val = a * b
+        -- 3. Multiplication
         function(val, depth)
             if approxEqual(val, 0) then return false end
-            local b = randomInt(-150, 150)
+            local b = randomInt(-100, 100)
             if b == 0 then return false end
             local a = val / b
-            if math.abs(a) > 200000 then return false end
+            if math.abs(a) > 100000 then return false end
             if not approxEqual(a * b, val) then return false end
             return Ast.MulExpression(
                 self:CreateNumberExpression(a, depth),
@@ -125,11 +119,11 @@ function NumbersToExpressions:init(settings)
             )
         end,
 
-        -- 4. Division: val = a / b
+        -- 4. Division
         function(val, depth)
-            local b = randomInt(2, 50)
+            local b = randomInt(2, 30)
             local a = val * b
-            if math.abs(a) > 200000 then return false end
+            if math.abs(a) > 100000 then return false end
             if not approxEqual(a / b, val) then return false end
             return Ast.DivExpression(
                 self:CreateNumberExpression(a, depth),
@@ -138,11 +132,11 @@ function NumbersToExpressions:init(settings)
             )
         end,
 
-        -- 5. Modulo: (val + k*b) % b = val
+        -- 5. Modulo
         function(val, depth)
             if val < 0 or val ~= math.floor(val) then return false end
-            local b = randomInt(math.floor(val) + 2, math.floor(val) + 200)
-            local k = randomInt(3, 25)
+            local b = randomInt(math.floor(val) + 2, math.floor(val) + 150)
+            local k = randomInt(3, 20)
             local a = val + b * k
             if not approxEqual(a % b, val) then return false end
             return Ast.ModExpression(
@@ -152,7 +146,7 @@ function NumbersToExpressions:init(settings)
             )
         end,
 
-        -- 6. Power: val = a ^ b
+        -- 6. Power
         function(val, depth)
             if approxEqual(val, 0) or approxEqual(val, 1) or approxEqual(val, -1) then return false end
             local b = randomInt(2, 3)
@@ -166,7 +160,7 @@ function NumbersToExpressions:init(settings)
             )
         end,
 
-        -- 7. Negate: val = -(-val)
+        -- 7. Negate
         function(val, depth)
             return Ast.NegateExpression(
                 self:CreateNumberExpression(-val, depth),
@@ -174,7 +168,7 @@ function NumbersToExpressions:init(settings)
             )
         end,
 
-        -- 8. Double Negate: val = -(-(-(-val)))
+        -- 8. Double Negate
         function(val, depth)
             return Ast.NegateExpression(
                 Ast.NegateExpression(
@@ -193,9 +187,9 @@ function NumbersToExpressions:init(settings)
 
         -- 9. Complex: (a + b) * c - d
         function(val, depth)
-            local a = randomInt(-300, 300)
-            local b = randomInt(-300, 300)
-            local c = randomInt(2, 15)
+            local a = randomInt(-200, 200)
+            local b = randomInt(-200, 200)
+            local c = randomInt(2, 12)
             local d = (a + b) * c - val
             if not approxEqual(((a + b) * c) - d, val) then return false end
             local add = Ast.AddExpression(
@@ -209,9 +203,9 @@ function NumbersToExpressions:init(settings)
 
         -- 10. Complex: (a - b) / c + d
         function(val, depth)
-            local c = randomInt(2, 20)
-            local d = randomInt(-150, 150)
-            local a = randomInt(-300, 300)
+            local c = randomInt(2, 15)
+            local d = randomInt(-100, 100)
+            local a = randomInt(-200, 200)
             local b = a - (val - d) * c
             if not approxEqual((a - b) / c + d, val) then return false end
             local sub = Ast.SubExpression(
@@ -225,11 +219,11 @@ function NumbersToExpressions:init(settings)
 
         -- 11. Complex: ((a + b) * c - d) / e + f
         function(val, depth)
-            local e = randomInt(2, 12)
-            local f = randomInt(-80, 80)
-            local c = randomInt(2, 12)
-            local a = randomInt(-200, 200)
-            local b = randomInt(-200, 200)
+            local e = randomInt(2, 10)
+            local f = randomInt(-50, 50)
+            local c = randomInt(2, 10)
+            local a = randomInt(-150, 150)
+            local b = randomInt(-150, 150)
             local d = (a + b) * c - (val - f) * e
             if not approxEqual(((a + b) * c - d) / e + f, val) then return false end
             local add = Ast.AddExpression(
@@ -243,11 +237,11 @@ function NumbersToExpressions:init(settings)
             return Ast.AddExpression(div, self:CreateNumberExpression(f, depth), false)
         end,
 
-        -- 12. Modular arithmetic (HARD): (a * b) % m = val
+        -- 12. Modular arithmetic (HARD)
         function(val, depth)
-            if val < 0 or val ~= math.floor(val) or val > 30000 then return false end
-            local m = randomInt(math.floor(val) + 50, math.floor(val) + 15000)
-            if m > 300000 then return false end
+            if val < 0 or val ~= math.floor(val) or val > 20000 then return false end
+            local m = randomInt(math.floor(val) + 50, math.floor(val) + 10000)
+            if m > 200000 then return false end
             local a = randomInt(2, m - 1)
             local inv = modinv(a, m)
             if not inv then return false end
@@ -264,33 +258,12 @@ function NumbersToExpressions:init(settings)
             )
         end,
 
-        -- 13. Fractional reconstruction
-        function(val, depth)
-            if val ~= math.floor(val) then return false end
-            local offset = randomInt(1, 30)
-            local a = val + offset
-            local b = randomInt(2, 20)
-            if not approxEqual((a - (a % b)) / b * b + (a % b) - offset, val) then return false end
-            local aExpr = self:CreateNumberExpression(a, depth)
-            local bExpr = self:CreateNumberExpression(b, depth)
-            local offExpr = self:CreateNumberExpression(offset, depth)
-            local modExpr = Ast.ModExpression(aExpr, bExpr, false)
-            local divExpr = Ast.DivExpression(
-                Ast.SubExpression(aExpr, modExpr, false),
-                bExpr,
-                false
-            )
-            local mulExpr = Ast.MulExpression(divExpr, bExpr, false)
-            local addExpr = Ast.AddExpression(mulExpr, modExpr, false)
-            return Ast.SubExpression(addExpr, offExpr, false)
-        end,
-
-        -- 14. Power chain: (a ^ b) ^ (1/b)
+        -- 13. Power chain: (a ^ b) ^ (1/b)
         function(val, depth)
             if val <= 0 or val ~= math.floor(val) then return false end
             local b = randomInt(2, 3)
             local powered = val ^ b
-            if powered > 16777216 then return false end
+            if powered > 8388608 then return false end
             if not approxEqual(powered ^ (1 / b), val) then return false end
             return Ast.PowExpression(
                 self:CreateNumberExpression(powered, depth),
@@ -299,14 +272,14 @@ function NumbersToExpressions:init(settings)
             )
         end,
 
-        -- 15. Deep arithmetic chain: a + b*c - d/e + f%g
+        -- 14. Deep arithmetic chain: a + b*c - d/e + f%g
         function(val, depth)
-            local b = randomInt(1, 15)
-            local c = randomInt(2, 8)
-            local e = randomInt(2, 8)
-            local g = randomInt(2, 15)
+            local b = randomInt(1, 12)
+            local c = randomInt(2, 6)
+            local e = randomInt(2, 6)
+            local g = randomInt(2, 12)
             local f = randomInt(0, g - 1)
-            local d = randomInt(1, 30) * e
+            local d = randomInt(1, 20) * e
             local a = val - (b * c) + (d / e) - (f % g)
             if not approxEqual(a + b * c - d / e + f % g, val) then return false end
             local mul = Ast.MulExpression(self:CreateNumberExpression(b, depth), self:CreateNumberExpression(c, depth), false)
@@ -317,13 +290,13 @@ function NumbersToExpressions:init(settings)
             return Ast.AddExpression(sub1, mod, false)
         end,
 
-        -- 16. Triple nested: ((a + b) * c + d) / e - f
+        -- 15. Triple nested: ((a + b) * c + d) / e - f
         function(val, depth)
-            local e = randomInt(2, 15)
-            local f = randomInt(-80, 80)
-            local c = randomInt(2, 12)
-            local a = randomInt(-200, 200)
-            local b = randomInt(-200, 200)
+            local e = randomInt(2, 12)
+            local f = randomInt(-50, 50)
+            local c = randomInt(2, 10)
+            local a = randomInt(-150, 150)
+            local b = randomInt(-150, 150)
             local d = (val + f) * e - (a + b) * c
             if not approxEqual(((a + b) * c + d) / e - f, val) then return false end
             local add = Ast.AddExpression(
@@ -337,11 +310,11 @@ function NumbersToExpressions:init(settings)
             return Ast.SubExpression(div, self:CreateNumberExpression(f, depth), false)
         end,
 
-        -- 17. Power-Modulo combo (HARDEST): (a ^ b) % m = val
+        -- 16. Power-Modulo combo (HARDEST)
         function(val, depth)
-            if val < 0 or val ~= math.floor(val) or val > 500 then return false end
+            if val < 0 or val ~= math.floor(val) or val > 300 then return false end
             local b = randomInt(2, 4)
-            local m = randomInt(math.floor(val) + 100, math.floor(val) + 30000)
+            local m = randomInt(math.floor(val) + 100, math.floor(val) + 20000)
             local a = randomInt(2, m - 1)
             if not approxEqual((a ^ b) % m, val) then return false end
             return Ast.ModExpression(
@@ -355,13 +328,13 @@ function NumbersToExpressions:init(settings)
             )
         end,
 
-        -- 18. Negate-Mul combo: -(a * -b) = a * b
+        -- 17. Negate-Mul combo: -(a * -b) = a * b
         function(val, depth)
             if approxEqual(val, 0) then return false end
-            local a = randomInt(2, 100)
+            local a = randomInt(2, 50)
             if a == 0 then return false end
             local b = val / a
-            if math.abs(b) > 200000 then return false end
+            if math.abs(b) > 100000 then return false end
             if not approxEqual(-(a * -b), val) then return false end
             local mul = Ast.MulExpression(
                 self:CreateNumberExpression(a, depth),
@@ -371,12 +344,12 @@ function NumbersToExpressions:init(settings)
             return Ast.NegateExpression(mul, false)
         end,
 
-        -- 19. Mod-Add-Mul: (a % b + c) * d - e
+        -- 18. Mod-Add-Mul: (a % b + c) * d - e
         function(val, depth)
-            local b = randomInt(10, 50)
+            local b = randomInt(10, 30)
             local a = randomInt(b + 1, b * 3)
-            local d = randomInt(2, 10)
-            local e = randomInt(-50, 50)
+            local d = randomInt(2, 8)
+            local e = randomInt(-30, 30)
             local c = (val + e) / d - (a % b)
             if not approxEqual((a % b + c) * d - e, val) then return false end
             local mod = Ast.ModExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false)
@@ -385,18 +358,39 @@ function NumbersToExpressions:init(settings)
             return Ast.SubExpression(mul, self:CreateNumberExpression(e, depth), false)
         end,
 
-        -- 20. Sub-Mod chain: a - (b % c + d) + e
+        -- 19. Sub-Mod chain: a - (b % c + d) + e
         function(val, depth)
-            local c = randomInt(5, 30)
+            local c = randomInt(5, 20)
             local b = randomInt(c + 1, c * 4)
-            local d = randomInt(1, 20)
-            local e = randomInt(-30, 30)
+            local d = randomInt(1, 15)
+            local e = randomInt(-20, 20)
             local a = val + (b % c + d) - e
             if not approxEqual(a - (b % c + d) + e, val) then return false end
             local mod = Ast.ModExpression(self:CreateNumberExpression(b, depth), self:CreateNumberExpression(c, depth), false)
             local add = Ast.AddExpression(mod, self:CreateNumberExpression(d, depth), false)
             local sub = Ast.SubExpression(self:CreateNumberExpression(a, depth), add, false)
             return Ast.AddExpression(sub, self:CreateNumberExpression(e, depth), false)
+        end,
+
+        -- 20. Fractional reconstruction
+        function(val, depth)
+            if val ~= math.floor(val) then return false end
+            local offset = randomInt(1, 20)
+            local a = val + offset
+            local b = randomInt(2, 15)
+            if not approxEqual((a - (a % b)) / b * b + (a % b) - offset, val) then return false end
+            local aExpr = self:CreateNumberExpression(a, depth)
+            local bExpr = self:CreateNumberExpression(b, depth)
+            local offExpr = self:CreateNumberExpression(offset, depth)
+            local modExpr = Ast.ModExpression(aExpr, bExpr, false)
+            local divExpr = Ast.DivExpression(
+                Ast.SubExpression(aExpr, modExpr, false),
+                bExpr,
+                false
+            )
+            local mulExpr = Ast.MulExpression(divExpr, bExpr, false)
+            local addExpr = Ast.AddExpression(mulExpr, modExpr, false)
+            return Ast.SubExpression(addExpr, offExpr, false)
         end,
     }
 end
@@ -419,8 +413,13 @@ function NumbersToExpressions:CreateNumberExpression(val, depth)
 end
 
 function NumbersToExpressions:apply(ast)
-    visitast(ast, nil, function(node, data)
+    return visitast(ast, nil, function(node, data)
         if node.kind == AstKind.NumberExpression then
+            -- ป้องกัน table index ที่พบบ่อย (1-20) ไม่ให้ถูก obfuscate
+            -- เพราะถ้าซ้อนลึกเกินไปค่าอาจหลุดจาก integer เป๊ะๆ กลายเป็น nil
+            if node.value == math.floor(node.value) and node.value >= 1 and node.value <= 20 then
+                return nil
+            end
             if randomFloat() <= self.Treshold then
                 return self:CreateNumberExpression(node.value, 0)
             end
@@ -429,3 +428,4 @@ function NumbersToExpressions:apply(ast)
 end
 
 return NumbersToExpressions
+
