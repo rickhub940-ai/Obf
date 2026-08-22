@@ -115,22 +115,18 @@ function ConstantArray:buildNoisyAlphabet()
     local chars = {}
     local used = {}
     
-    -- แยก base เป็น list
     local baseList = {}
     for i = 1, #base do table.insert(baseList, base:sub(i, i)) end
     
-    -- สุ่มสลับ baseList
     for i = #baseList, 2, -1 do
         local j = math.random(i)
         baseList[i], baseList[j] = baseList[j], baseList[i]
     end
     
-    -- กระจาย symbols ทั่วๆ โดยแทรกระหว่าง base characters
     local result = {}
     local baseIndex = 1
     local symbolIndex = 1
     
-    -- สุ่มตำแหน่งที่จะใส่ symbols (ให้กระจายทั่วๆ)
     local symbolPositions = {}
     for i = 1, #symbols do
         local pos = math.random(1, #baseList + 1)
@@ -138,7 +134,6 @@ function ConstantArray:buildNoisyAlphabet()
     end
     table.sort(symbolPositions)
     
-    -- สร้าง alphabet โดยแทรก symbols ตามตำแหน่งที่สุ่ม
     local posIndex = 1
     for i = 1, #baseList do
         while posIndex <= #symbolPositions and symbolPositions[posIndex] <= i + (posIndex - 1) do
@@ -156,7 +151,6 @@ function ConstantArray:buildNoisyAlphabet()
         symbolIndex = symbolIndex + 1
     end
     
-    -- สุ่มสลับเล็กน้อยเพื่อความมั่ว
     for i = 1, #result do
         local j = math.random(math.max(1, i - 3), math.min(#result, i + 3))
         result[i], result[j] = result[j], result[i]
@@ -275,7 +269,6 @@ function ConstantArray:addDecodeCode(ast)
 		"local lookup = LOOKUP_TABLE;",
 		"local len = string.len;",
 		"local sub = string.sub;",
-		"local floor = math.floor;",
 		"local strchar = string.char;",
 		"local insert = table.insert;",
 		"local concat = table.concat;",
@@ -298,16 +291,16 @@ function ConstantArray:addDecodeCode(ast)
 						count = count + 1
 						if count == 4 then
 							count = 0
-							local c1 = floor(value / 65536)
-							local c2 = floor(value % 65536 / 256)
+							local c1 = (value - value % 65536) / 65536
+							local c2 = (value % 65536 - value % 65536 % 256) / 256
 							local c3 = value % 256
 							insert(parts, strchar(c1, c2, c3))
 							value = 0
 						end
 					elseif char == "=" then
-						insert(parts, strchar(floor(value / 65536)));
+						insert(parts, strchar((value - value % 65536) / 65536));
 						if index >= length or sub(data, index + 1, index + 1) ~= "=" then
-							insert(parts, strchar(floor(value % 65536 / 256)));
+							insert(parts, strchar((value % 65536 - value % 65536 % 256) / 256));
 						end
 						break
 					end
@@ -377,15 +370,12 @@ function ConstantArray:apply(ast, pipeline)
 	self.rootScope = ast.body.scope;
 	self.arrId     = self.rootScope:addVariable();
 
-	-- Build noisy base64 alphabet with forced symbols
 	self.base64chars = self:buildNoisyAlphabet();
 
 	self.constants = {};
 	self.lookup    = {};
 
-	-- Extract Constants
 	visitast(ast, nil, function(node, data)
-		-- Apply only to some nodes
 		if math.random() <= self.Treshold then
 			node.__apply_constant_array = true;
 			if node.kind == AstKind.StringExpression then
@@ -400,7 +390,6 @@ function ConstantArray:apply(ast, pipeline)
 		end
 	end);
 
-	-- Shuffle Array
 	if self.Shuffle then
 		self.constants = util.shuffle(self.constants);
 		self.lookup    = {};
@@ -409,12 +398,10 @@ function ConstantArray:apply(ast, pipeline)
 		end
 	end
 
-	-- Set Wrapper Function Offset
 	self.wrapperOffset = math.random(-self.MaxWrapperOffset, self.MaxWrapperOffset);
 	self.wrapperId     = self.rootScope:addVariable();
 
 	visitast(ast, function(node, data)
-		-- Add Local Wrapper Functions
 		if self.LocalWrapperCount > 0 and node.kind == AstKind.Block and node.isFunctionBlock and math.random() <= self.LocalWrapperTreshold then
 			local id = node.scope:addVariable()
 			data.functionData.local_wrappers = {
@@ -444,7 +431,6 @@ function ConstantArray:apply(ast, pipeline)
 			data.functionData.__used = true;
 		end
 	end, function(node, data)
-		-- Actually insert Statements to get the Constant Values
 		if node.__apply_constant_array then
 			if node.kind == AstKind.StringExpression then
 				return self:getConstant(node.value, data);
@@ -456,7 +442,6 @@ function ConstantArray:apply(ast, pipeline)
 			node.__apply_constant_array = nil;
 		end
 
-		-- Insert Local Wrapper Declarations
 		if self.LocalWrapperCount > 0 and node.kind == AstKind.Block and node.isFunctionBlock and data.functionData.local_wrappers and data.functionData.__used then
 			data.functionData.__used = nil;
 			local elems = {};
@@ -481,7 +466,6 @@ function ConstantArray:apply(ast, pipeline)
 
 				local addSubArg;
 
-				-- Create add and Subtract code
 				if offset < 0 then
 					addSubArg = Ast.SubExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(-offset));
 				else
@@ -518,23 +502,19 @@ function ConstantArray:apply(ast, pipeline)
 	self:addDecodeCode(ast);
 
 	local steps = util.shuffle({
-		-- Add Wrapper Function Code
 		function() 
 			local funcScope = Scope:new(self.rootScope);
-			-- Add Reference to Array
 			funcScope:addReferenceToHigherScope(self.rootScope, self.arrId);
 
 			local arg = funcScope:addVariable();
 			local addSubArg;
 
-			-- Create add and Subtract code
 			if self.wrapperOffset < 0 then
 				addSubArg = Ast.SubExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(-self.wrapperOffset));
 			else
 				addSubArg = Ast.AddExpression(Ast.VariableExpression(funcScope, arg), Ast.NumberExpression(self.wrapperOffset));
 			end
 
-			-- Create and Add the Function Declaration
 			table.insert(ast.body.statements, 1, Ast.LocalFunctionDeclaration(self.rootScope, self.wrapperId, {
 				Ast.VariableExpression(funcScope, arg)
 			}, Ast.Block({
@@ -545,13 +525,7 @@ function ConstantArray:apply(ast, pipeline)
 					)
 				});
 			}, funcScope)));
-
-			-- Resulting Code:
-			-- function xy(a)
-			-- 		return ARR[a - 10]
-			-- end
 		end,
-		-- Rotate Array and Add unrotate code
 		function()
 			if self.Rotate and #self.constants > 1 then
 				local shift = math.random(1, #self.constants - 1);
@@ -566,7 +540,6 @@ function ConstantArray:apply(ast, pipeline)
 		f();
 	end
 
-	-- Add the Array Declaration
 	table.insert(ast.body.statements, 1, Ast.LocalVariableDeclaration(self.rootScope, {self.arrId}, {self:createArray()}));
 
 	self.rootScope = nil;
