@@ -1,16 +1,14 @@
 -- StringVarProxy Step for Prometheus Obfuscator
 -- Converts local variables to string-indexed table access with special characters
--- Uses a single short-named table per scope chain (upvalue for nested)
--- No _G. No long random table names. Keys use special chars + English mixed case.
+-- Uses a single table in the ROOT BLOCK scope (ast.body.scope) shared via upvalues
+-- No _G. Keys use special chars + English mixed case.
 
 local Step = require("prometheus.step");
 local Ast = require("prometheus.ast");
 local visitast = require("prometheus.visitast");
-local Parser = require("prometheus.parser");
 local enums = require("prometheus.enums")
 
 local AstKind = Ast.AstKind;
-local LuaVersion = enums.LuaVersion;
 
 local StringVarProxy = Step:extend();
 StringVarProxy.Description = "Converts locals to _[\"!@#xA$\"] style table access";
@@ -29,103 +27,81 @@ local function randomKey(length)
     return table.concat(chars)
 end
 
--- FIX: Override abstract init to prevent "Abstract Steps cannot be Created" error
 function StringVarProxy:init()
 end
 
 function StringVarProxy:apply(ast, pipeline)
-    local parser = Parser:new({ LuaVersion = LuaVersion.Lua51 })
+    -- Use ast.body.scope as the root local scope (NOT global scope)
+    -- This avoids "Unresolved Upvalue" when global scope tries to reference local scope
+    local rootScope = ast.body.scope
+    local tableVarId = rootScope:addVariable()
 
-    -- scope -> { mappings = {[varId]=key}, tableVar = {scope, id}, declared = bool }
-    local scopeInfo = {}
+    -- mappings[scope][varId] = randomKey
+    local mappings = {}
+    local function getMap(sc)
+        if not mappings[sc] then mappings[sc] = {} end
+        return mappings[sc]
+    end
 
-    -- Pass 1: collect all local vars to map
+    -- Helper: safely add upvalue reference (skip if current scope is global or same as root)
+    local function addRef(currentScope)
+        if currentScope.isGlobal then
+            -- Global scope accessing a local variable: this should NOT happen for locals,
+            -- but if it does, we skip the upvalue tracking to avoid the error.
+            -- The unparser will output the variable name directly.
+            return
+        end
+        if currentScope == rootScope then
+            -- Same scope: no upvalue needed
+            return
+        end
+        currentScope:addReferenceToHigherScope(rootScope, tableVarId)
+    end
+
+    -- Pass 1: collect all local vars, function params, local functions
     visitast(ast, function(node, data)
         local sc = data.scope
-        if not sc then return end
+        if not sc or sc.isGlobal then return end
 
         if node.kind == AstKind.LocalVariableDeclaration then
-            if not scopeInfo[sc] then scopeInfo[sc] = { mappings = {} } end
             for _, id in ipairs(node.ids) do
-                if not scopeInfo[sc].mappings[id] then
-                    scopeInfo[sc].mappings[id] = randomKey()
-                end
+                getMap(sc)[id] = randomKey()
             end
-        end
-
-        if node.kind == AstKind.LocalFunctionDeclaration then
-            if not scopeInfo[sc] then scopeInfo[sc] = { mappings = {} } end
-            if not scopeInfo[sc].mappings[node.id] then
-                scopeInfo[sc].mappings[node.id] = randomKey()
-            end
-        end
-
-        if node.kind == AstKind.FunctionLiteralExpression and node.args then
+        elseif node.kind == AstKind.LocalFunctionDeclaration then
+            getMap(sc)[node.id] = randomKey()
+        elseif node.kind == AstKind.FunctionLiteralExpression and node.args then
             local funcScope = node.scope
-            if funcScope then
-                if not scopeInfo[funcScope] then scopeInfo[funcScope] = { mappings = {} } end
+            if funcScope and not funcScope.isGlobal then
                 for _, id in ipairs(node.args) do
-                    if type(id) == "number" and not scopeInfo[funcScope].mappings[id] then
-                        scopeInfo[funcScope].mappings[id] = randomKey()
+                    if type(id) == "number" then
+                        getMap(funcScope)[id] = randomKey()
                     end
                 end
             end
         end
     end, nil)
 
-    -- Pass 1.5: create/assign table var for each scope chain
-    for sc, info in pairs(scopeInfo) do
-        if next(info.mappings) then
-            -- Find nearest ancestor that already has a table var
-            local ancestor = sc.parent
-            local found = nil
-            while ancestor do
-                if scopeInfo[ancestor] and scopeInfo[ancestor].tableVar then
-                    found = ancestor
-                    break
-                end
-                ancestor = ancestor.parent
-            end
-
-            if found then
-                -- Reuse ancestor table via upvalue
-                info.tableVar = scopeInfo[found].tableVar
-                sc:addReferenceToHigherScope(info.tableVar.scope, info.tableVar.id)
-            else
-                -- Create new table var in this scope
-                local varId = sc:addVariable()
-                info.tableVar = { scope = sc, id = varId }
-                info.declared = true
-            end
-        end
-    end
-
-    -- Pass 2: insert declarations and transform AST
+    -- Pass 2: insert table declaration + transform all references
     visitast(ast, function(node, data)
-        -- Insert local _ = {} at top of blocks that own a new table var
-        if node.kind == AstKind.Block and node.scope then
-            local sc = node.scope
-            local info = scopeInfo[sc]
-            if info and info.declared and node.statements then
-                local decl = Ast.LocalVariableDeclaration(
-                    sc,
-                    { info.tableVar.id },
-                    { Ast.TableConstructorExpression({}) }
-                )
-                table.insert(node.statements, 1, decl)
-            end
+        -- Insert: local _t = {} at the TOP of root block
+        if node.kind == AstKind.Block and node.scope == rootScope and node.statements then
+            local decl = Ast.LocalVariableDeclaration(
+                rootScope,
+                { tableVarId },
+                { Ast.TableConstructorExpression({}) }
+            )
+            table.insert(node.statements, 1, decl)
         end
     end, function(node, data)
-        -- Transform variable reads (RHS) -> IndexExpression
+        -- RHS reads: VariableExpression -> IndexExpression
         if node.kind == AstKind.VariableExpression then
             local sc = node.scope
-            while sc do
-                local info = scopeInfo[sc]
-                if info and info.mappings and info.mappings[node.id] then
-                    local key = info.mappings[node.id]
-                    data.scope:addReferenceToHigherScope(info.tableVar.scope, info.tableVar.id)
+            while sc and not sc.isGlobal do
+                if mappings[sc] and mappings[sc][node.id] then
+                    local key = mappings[sc][node.id]
+                    addRef(data.scope)
                     return Ast.IndexExpression(
-                        Ast.VariableExpression(info.tableVar.scope, info.tableVar.id),
+                        Ast.VariableExpression(rootScope, tableVarId),
                         Ast.StringExpression(key)
                     )
                 end
@@ -133,46 +109,42 @@ function StringVarProxy:apply(ast, pipeline)
             end
         end
 
-        -- Transform: local x = val  ->  _["key"] = val
-        -- Use AssignmentIndexing (NOT IndexExpression) for LHS!
+        -- LHS writes: local x = val  ->  _t["key"] = val
         if node.kind == AstKind.LocalVariableDeclaration then
             local sc = data.scope
-            local info = scopeInfo[sc]
-            if info and info.mappings then
-                local assigns = {}
+            if sc and not sc.isGlobal and mappings[sc] then
+                local newStatements = {}
                 for i, id in ipairs(node.ids) do
-                    local key = info.mappings[id]
-                    if key then
+                    if mappings[sc][id] then
+                        local key = mappings[sc][id]
                         local val = node.values and node.values[i] or Ast.ConstantNode(nil)
-                        data.scope:addReferenceToHigherScope(info.tableVar.scope, info.tableVar.id)
-                        table.insert(assigns, Ast.AssignmentStatement(
+                        addRef(data.scope)
+                        table.insert(newStatements, Ast.AssignmentStatement(
                             { Ast.AssignmentIndexing(
-                                Ast.VariableExpression(info.tableVar.scope, info.tableVar.id),
+                                Ast.VariableExpression(rootScope, tableVarId),
                                 Ast.StringExpression(key)
                             )},
                             { val }
                         ))
                     end
                 end
-                if #assigns == 1 then
-                    return assigns[1]
-                elseif #assigns > 1 then
-                    return Ast.Block(assigns, sc)
+                if #newStatements == 1 then
+                    return newStatements[1]
+                elseif #newStatements > 1 then
+                    return unpack(newStatements)
                 end
             end
         end
 
-        -- Transform: local function f()  ->  _["key"] = function()
-        -- Use AssignmentIndexing for LHS!
+        -- LHS writes: local function f()  ->  _t["key"] = function()
         if node.kind == AstKind.LocalFunctionDeclaration then
             local sc = data.scope
-            local info = scopeInfo[sc]
-            if info and info.mappings and info.mappings[node.id] then
-                local key = info.mappings[node.id]
-                data.scope:addReferenceToHigherScope(info.tableVar.scope, info.tableVar.id)
+            if sc and not sc.isGlobal and mappings[sc] and mappings[sc][node.id] then
+                local key = mappings[sc][node.id]
+                addRef(data.scope)
                 return Ast.AssignmentStatement(
                     { Ast.AssignmentIndexing(
-                        Ast.VariableExpression(info.tableVar.scope, info.tableVar.id),
+                        Ast.VariableExpression(rootScope, tableVarId),
                         Ast.StringExpression(key)
                     )},
                     { Ast.FunctionLiteralExpression(node.args, node.body) }
