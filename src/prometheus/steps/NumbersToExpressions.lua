@@ -47,6 +47,24 @@ local function modinv(a, m)
     return inv
 end
 
+-- Safe random that forces integer args
+local function safeRandom(a, b)
+    if not a and not b then
+        return math.random()
+    end
+    if not b then
+        a = math.floor(a)
+        if a < 1 then a = 1 end
+        return math.random(a)
+    end
+    a = math.floor(a)
+    b = math.floor(b)
+    if a > b then a, b = b, a end
+    if a < 1 then a = 1 end
+    if b < 1 then b = 1 end
+    return math.random(a, b)
+end
+
 function NumbersToExpressions:init(settings)
     settings = settings or {}
     self.Treshold = settings.Treshold or 1
@@ -55,44 +73,44 @@ function NumbersToExpressions:init(settings)
     
     self.ExpressionGenerators = {
         function(val, depth)
-            local a = math.random(-2^18, 2^18)
+            local a = safeRandom(-262144, 262144)
             local b = val - a
             if not approxEqual(a + b, val) then return false end
             return Ast.AddExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false)
         end,
         function(val, depth)
-            local a = math.random(-2^18, 2^18)
+            local a = safeRandom(-262144, 262144)
             local b = a - val
             if not approxEqual(a - b, val) then return false end
             return Ast.SubExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false)
         end,
         function(val, depth)
             if approxEqual(val, 0) then return false end
-            local b = math.random(-200, 200)
+            local b = safeRandom(-200, 200)
             if b == 0 then return false end
             local a = val / b
-            if math.abs(a) > 2^18 then return false end
+            if math.abs(a) > 262144 then return false end
             if not approxEqual(a * b, val) then return false end
             return Ast.MulExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false)
         end,
         function(val, depth)
-            local b = math.random(2, 100)
+            local b = safeRandom(2, 100)
             local a = val * b
-            if math.abs(a) > 2^18 then return false end
+            if math.abs(a) > 262144 then return false end
             if not approxEqual(a / b, val) then return false end
             return Ast.DivExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false)
         end,
         function(val, depth)
             if val < 0 or val ~= math.floor(val) then return false end
-            local b = math.random(math.floor(val) + 2, math.floor(val) + 300)
-            local k = math.random(3, 30)
+            local b = safeRandom(math.floor(val) + 2, math.floor(val) + 300)
+            local k = safeRandom(3, 30)
             local a = val + b * k
             if not approxEqual(a % b, val) then return false end
             return Ast.ModExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false)
         end,
         function(val, depth)
             if approxEqual(val, 0) or approxEqual(val, 1) or approxEqual(val, -1) then return false end
-            local b = math.random(2, 4)
+            local b = safeRandom(2, 4)
             local a = val ^ (1 / b)
             if a <= 0 or a ~= math.floor(a) then return false end
             if not approxEqual(a ^ b, val) then return false end
@@ -120,9 +138,9 @@ function NumbersToExpressions:init(settings)
             return Ast.IndexExpression(outer, idx)
         end,
         function(val, depth)
-            local a = math.random(-500, 500)
-            local b = math.random(-500, 500)
-            local c = math.random(2, 20)
+            local a = safeRandom(-500, 500)
+            local b = safeRandom(-500, 500)
+            local c = safeRandom(2, 20)
             local d = (a + b) * c - val
             if not approxEqual(((a + b) * c) - d, val) then return false end
             local add = Ast.AddExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false)
@@ -130,9 +148,9 @@ function NumbersToExpressions:init(settings)
             return Ast.SubExpression(mul, self:CreateNumberExpression(d, depth), false)
         end,
         function(val, depth)
-            local c = math.random(2, 30)
-            local d = math.random(-200, 200)
-            local a = math.random(-500, 500)
+            local c = safeRandom(2, 30)
+            local d = safeRandom(-200, 200)
+            local a = safeRandom(-500, 500)
             local b = a - (val - d) * c
             if not approxEqual((a - b) / c + d, val) then return false end
             local sub = Ast.SubExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false)
@@ -140,11 +158,11 @@ function NumbersToExpressions:init(settings)
             return Ast.AddExpression(div, self:CreateNumberExpression(d, depth), false)
         end,
         function(val, depth)
-            local e = math.random(2, 15)
-            local f = math.random(-100, 100)
-            local c = math.random(2, 15)
-            local a = math.random(-300, 300)
-            local b = math.random(-300, 300)
+            local e = safeRandom(2, 15)
+            local f = safeRandom(-100, 100)
+            local c = safeRandom(2, 15)
+            local a = safeRandom(-300, 300)
+            local b = safeRandom(-300, 300)
             local d = (a + b) * c - (val - f) * e
             if not approxEqual(((a + b) * c - d) / e + f, val) then return false end
             local add = Ast.AddExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false)
@@ -155,9 +173,9 @@ function NumbersToExpressions:init(settings)
         end,
         function(val, depth)
             if val < 0 or val ~= math.floor(val) or val > 50000 then return false end
-            local m = math.random(math.floor(val) + 50, math.floor(val) + 20000)
+            local m = safeRandom(math.floor(val) + 50, math.floor(val) + 20000)
             if m > 500000 then return false end
-            local a = math.random(2, m - 1)
+            local a = safeRandom(2, m - 1)
             local inv = modinv(a, m)
             if not inv then return false end
             local b = math.floor((val * inv) % m)
@@ -166,9 +184,9 @@ function NumbersToExpressions:init(settings)
         end,
         function(val, depth)
             if val ~= math.floor(val) then return false end
-            local offset = math.random(1, 50)
+            local offset = safeRandom(1, 50)
             local a = val + offset
-            local b = math.random(2, 30)
+            local b = safeRandom(2, 30)
             if not approxEqual((a - (a % b)) / b * b + (a % b) - offset, val) then return false end
             local aExpr = self:CreateNumberExpression(a, depth)
             local bExpr = self:CreateNumberExpression(b, depth)
@@ -181,19 +199,19 @@ function NumbersToExpressions:init(settings)
         end,
         function(val, depth)
             if val <= 0 or val ~= math.floor(val) then return false end
-            local b = math.random(2, 3)
+            local b = safeRandom(2, 3)
             local powered = val ^ b
-            if powered > 2^25 then return false end
+            if powered > 33554432 then return false end
             if not approxEqual(powered ^ (1 / b), val) then return false end
             return Ast.PowExpression(self:CreateNumberExpression(powered, depth), self:CreateNumberExpression(1 / b, depth), false)
         end,
         function(val, depth)
-            local b = math.random(1, 20)
-            local c = math.random(2, 10)
-            local e = math.random(2, 10)
-            local g = math.random(2, 20)
-            local f = math.random(0, g - 1)
-            local d = math.random(1, 50) * e
+            local b = safeRandom(1, 20)
+            local c = safeRandom(2, 10)
+            local e = safeRandom(2, 10)
+            local g = safeRandom(2, 20)
+            local f = safeRandom(0, g - 1)
+            local d = safeRandom(1, 50) * e
             local a = val - (b * c) + (d / e) - (f % g)
             if not approxEqual(a + b * c - d / e + f % g, val) then return false end
             local mul = Ast.MulExpression(self:CreateNumberExpression(b, depth), self:CreateNumberExpression(c, depth), false)
@@ -204,11 +222,11 @@ function NumbersToExpressions:init(settings)
             return Ast.AddExpression(sub1, mod, false)
         end,
         function(val, depth)
-            local e = math.random(2, 20)
-            local f = math.random(-100, 100)
-            local c = math.random(2, 15)
-            local a = math.random(-300, 300)
-            local b = math.random(-300, 300)
+            local e = safeRandom(2, 20)
+            local f = safeRandom(-100, 100)
+            local c = safeRandom(2, 15)
+            local a = safeRandom(-300, 300)
+            local b = safeRandom(-300, 300)
             local d = (val + f) * e - (a + b) * c
             if not approxEqual(((a + b) * c + d) / e - f, val) then return false end
             local add = Ast.AddExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false)
@@ -219,9 +237,9 @@ function NumbersToExpressions:init(settings)
         end,
         function(val, depth)
             if val < 0 or val ~= math.floor(val) or val > 1000 then return false end
-            local b = math.random(2, 4)
-            local m = math.random(math.floor(val) + 100, math.floor(val) + 50000)
-            local a = math.random(2, m - 1)
+            local b = safeRandom(2, 4)
+            local m = safeRandom(math.floor(val) + 100, math.floor(val) + 50000)
+            local a = safeRandom(2, m - 1)
             if not approxEqual((a ^ b) % m, val) then return false end
             return Ast.ModExpression(Ast.PowExpression(self:CreateNumberExpression(a, depth), self:CreateNumberExpression(b, depth), false), self:CreateNumberExpression(m, depth), false)
         end,
