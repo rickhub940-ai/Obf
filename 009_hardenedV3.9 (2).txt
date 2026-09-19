@@ -1,0 +1,2539 @@
+local pcall_raw=pcall
+local type0=type
+local rawget0=rawget
+local rawset0=rawset
+local rawequal0=rawequal
+local setmetatable0=setmetatable
+local getmetatable0=getmetatable
+local error0=error
+local getfenv_raw=getfenv
+local setfenv_raw=setfenv
+local typeof_raw=typeof
+
+local function capture_env0(level)
+    if type0(getfenv_raw)~='function' then return nil end
+    local ok,value=pcall_raw(getfenv_raw,level)
+    if ok and type0(value)=='table' then return value end
+    return nil
+end
+
+local env0=capture_env0(0)
+local env1=capture_env0(1)
+local function bind0(name,fallback)
+    local first=type0(env0)=='table' and rawget0(env0,name) or nil
+    local second=type0(env1)=='table' and rawget0(env1,name) or nil
+    if type0(first)=='function' then return first end
+    if type0(second)=='function' then return second end
+    return fallback
+end
+
+local pcall0=bind0('pcall',pcall_raw)
+local xpcall0=bind0('xpcall',xpcall)
+local typeof0=bind0('typeof',typeof_raw)
+local getfenv0=bind0('getfenv',getfenv_raw)
+local setfenv0=bind0('setfenv',setfenv_raw)
+local pi0=math.pi
+local sin0=math.sin
+local cos0=math.cos
+local abs0=math.abs
+local sqrt0=math.sqrt
+local floor0=math.floor
+
+local function u32(x)
+    x=x%4294967296
+    if x<0 then x=x+4294967296 end
+    return x
+end
+
+local function power64(base,exponent)
+    local magnitude=exponent<0 and 1/(base^(-exponent)) or base^exponent
+    local high=floor0(abs0(magnitude)/4294967296)
+    local low=abs0(magnitude)-high*4294967296
+    return u32(low),u32(high),magnitude
+end
+
+local function close0(a,b,epsilon)
+    return abs0(a-b)<=epsilon*(1+abs0(b))
+end
+
+local function power_signed(base,exponent)
+    if exponent<0 then return 1/(base^(-exponent)) end
+    return base^exponent
+end
+
+local function stop()
+    print('fail')
+    return
+end
+
+local root=_G
+local getgenv0=rawget0(_G,'getgenv')
+if type0(getgenv0)~='function' then
+    local probeOk,probeValue=pcall0(function() return getgenv end)
+    if probeOk and type0(probeValue)=='function' then getgenv0=probeValue end
+end
+if type0(getgenv0)=='function' then
+    local ok,value=pcall0(getgenv0)
+    if ok and type0(value)=='table' then root=value end
+end
+
+local seed0=u32(0x6D2B79F1)
+local buffer0=rawget0(root,'buffer') or rawget0(_G,'buffer') or buffer
+local bit320=rawget0(root,'bit32') or rawget0(_G,'bit32') or bit32
+local create=type0(buffer0)=='table' and rawget0(buffer0,'create') or nil
+local fromstring=type0(buffer0)=='table' and rawget0(buffer0,'fromstring') or nil
+local btostring=type0(buffer0)=='table' and rawget0(buffer0,'tostring') or nil
+local blen=type0(buffer0)=='table' and rawget0(buffer0,'len') or nil
+local readu8=type0(buffer0)=='table' and rawget0(buffer0,'readu8') or nil
+local writeu8=type0(buffer0)=='table' and rawget0(buffer0,'writeu8') or nil
+local band=type0(bit320)=='table' and rawget0(bit320,'band') or nil
+local bor=type0(bit320)=='table' and rawget0(bit320,'bor') or nil
+local bxor=type0(bit320)=='table' and rawget0(bit320,'bxor') or nil
+local lshift=type0(bit320)=='table' and rawget0(bit320,'lshift') or nil
+local rshift=type0(bit320)=='table' and rawget0(bit320,'rshift') or nil
+if type0(create)~='function' or type0(fromstring)~='function' or type0(btostring)~='function' or type0(blen)~='function' or type0(readu8)~='function' or type0(writeu8)~='function' or type0(band)~='function' or type0(bor)~='function' or type0(bxor)~='function' or type0(lshift)~='function' or type0(rshift)~='function' then return stop() end
+
+local env_backing={
+    seed=seed0,
+    bridge=u32(bxor(seed0,0xC3EF19A7)),
+    depth=0,
+}
+local env_mt={}
+local function make_env_proxy(inner,depth)
+    local proxy={}
+    rawset0(proxy,'__depth',depth)
+    if type0(inner)=='table' then rawset0(proxy,'__inner',inner) end
+    return setmetatable0(proxy,env_mt)
+end
+env_mt.__index=function(self,key)
+    if key=='depth' then return rawget0(self,'__depth') end
+    local inner=rawget0(self,'__inner')
+    if type0(inner)=='table' then return inner[key] end
+    return rawget0(env_backing,key)
+end
+env_mt.__newindex=function(self,key,value)
+    if key=='depth' then
+        rawset0(self,'__depth',value)
+        return
+    end
+    local inner=rawget0(self,'__inner')
+    if type0(inner)=='table' then
+        inner[key]=value
+    else
+        rawset0(env_backing,key,value)
+    end
+end
+local env_proxy=make_env_proxy(nil,0)
+for depth=1,6 do env_proxy=make_env_proxy(env_proxy,depth) end
+local env_key=u32(bxor(env_proxy.seed,env_proxy.bridge))
+
+local function hop_env(level,fallback)
+    if type0(getfenv0)~='function' then return fallback end
+    local ok,value=pcall0(getfenv0,level)
+    if ok and type0(value)=='table' then return value end
+    return fallback
+end
+
+local function env_signature(env,tag)
+    local result=u32(tag)
+    if type0(env)~='table' then return u32(bxor(result,0xDEADBEEF)) end
+    local p=rawget0(env,'pcall')
+    local x=rawget0(env,'xpcall')
+    local t=rawget0(env,'type')
+    local r=rawget0(env,'rawget')
+    result=bxor(result,type0(p)=='function' and 0x10101010 or 0x01010101)
+    result=bxor(result,type0(x)=='function' and 0x20202020 or 0x02020202)
+    result=bxor(result,type0(t)=='function' and 0x30303030 or 0x03030303)
+    result=bxor(result,type0(r)=='function' and 0x40404040 or 0x04040404)
+    return u32(result)
+end
+
+local env0_hop=hop_env(0,env0)
+local env1_hop=hop_env(1,env1)
+local env0_key=env_signature(env0_hop,0x401)
+local env1_key=env_signature(env1_hop,0x402)
+local env_cross0=hop_env(0,env1_hop)
+local env_cross1=hop_env(1,env0_hop)
+local env_cross_key=u32(bxor(env_signature(env_cross0,0x403),env_signature(env_cross1,0x404)))
+env_backing.env0=env0_key
+env_backing.env1=env1_key
+env_backing.cross=env_cross_key
+env_key=u32(bxor(bxor(bxor(env_key,env0_key),env1_key),env_cross_key))
+
+local function wire_type_code(name)
+    if name=='nil' then return 0x11 end
+    if name=='boolean' then return 0x22 end
+    if name=='number' then return 0x33 end
+    if name=='string' then return 0x44 end
+    if name=='function' then return 0x55 end
+    if name=='table' then return 0x66 end
+    return 0x77
+end
+
+local trace_state={count=0,hash=u32(bxor(env_key,0x5A17))}
+local function trace_push(label,value,tag)
+    local kind=type0(value)
+    local scalar=kind=='number' and u32(value) or wire_type_code(kind)
+    local local_link=u32(bxor(scalar,u32(tag),u32(#label*0x11),env_key))
+    trace_state.count=trace_state.count+1
+    trace_state.hash=u32(bxor(trace_state.hash,local_link))
+    trace_state[#trace_state+1]=local_link
+    return local_link
+end
+
+local function wire_bit(value,tag,branch)
+    local kind=type0(value)
+    local runtime_kind=kind
+    if type0(typeof0)=='function' then runtime_kind=typeof0(value) end
+    local numeric=kind=='number' and u32(value) or wire_type_code(kind)
+    local result=bxor(numeric,wire_type_code(runtime_kind))
+    result=bxor(result,u32(tag))
+    result=bxor(result,branch and 0xA5C31F27 or 0x3C6EF372)
+    result=bxor(result,env_key)
+    result=bxor(result,(tag%2==0) and env0_key or env1_key)
+    result=bxor(result,u32(env_proxy.depth))
+    result=bxor(result,trace_push('wire',value,tag))
+    return u32(result)
+end
+
+local stack_state={count=0,hash=u32(bxor(env_key,0x64C0)),power_lo=0,power_hi=0,power_value=0}
+local function env_token_at(level,tag)
+    local local_ok,local_env=pcall0(getfenv0,level)
+    local caller_ok,caller_env=pcall0(getfenv0,level+1)
+    local local_marker=local_ok and type0(local_env)=='table' and (rawget0(local_env,'__trace_marker') or rawget0(local_env,'__stack_local')) or nil
+    local caller_marker=caller_ok and type0(caller_env)=='table' and (rawget0(caller_env,'__trace_marker') or rawget0(caller_env,'__stack_local')) or nil
+    local local_code=type0(local_marker)=='number' and u32(local_marker) or wire_type_code(type0(local_marker))
+    local caller_code=type0(caller_marker)=='number' and u32(caller_marker) or wire_type_code(type0(caller_marker))
+    local link=u32(bxor(u32(tag),u32(level),local_code,caller_code,env_key))
+    stack_state.count=stack_state.count+1
+    stack_state.hash=u32(bxor(stack_state.hash,link))
+    return link
+end
+
+local function stack_frame(value,level,limit)
+    local local_link=env_token_at(0,0x640+level)
+    local caller_link=env_token_at(1,0x650+level)
+    local outer_link=env_token_at(2,0x660+level)
+    local power_lo,power_hi,power_value=power64(2,64)
+    stack_state.power_lo=power_lo
+    stack_state.power_hi=power_hi
+    stack_state.power_value=power_value
+    local local_power=u32(bxor(u32(value),power_lo,local_link))
+    local jump=u32(bxor(local_power,caller_link,outer_link,power_hi,u32(level)))
+    stack_state.hash=u32(bxor(stack_state.hash,jump))
+    if level<limit then
+        return stack_frame(u32(bxor(value,jump)),level+1,limit)
+    end
+    return u32(bxor(jump,value))
+end
+
+local function make_stack_wrapper(slot,next_fn)
+    return function(value,depth)
+        local level=type0(depth)=='number' and depth or 0
+        local env_link=env_token_at(0,0x670+slot)
+        local ok,result=xpcall0(function()
+            local power_lo,power_hi=power64(2,64)
+            local folded=u32(bxor(u32(value),env_link,power_lo,power_hi,slot,level))
+            return next_fn(folded,level+4,level+7)
+        end,function(err)
+            stack_state.hash=u32(bxor(stack_state.hash,wire_type_code(type0(err))))
+            return nil
+        end)
+        if not ok then return nil end
+        return result
+    end
+end
+
+local stack_runner=stack_frame
+for slot=1,8 do
+    stack_runner=make_stack_wrapper(slot,stack_runner)
+end
+
+local meta20_mt={}
+local function meta20(value,tag)
+    return band(wire_bit(value,tag,true),0xFFFFF)
+end
+meta20_mt.__call=function(self,target,mt)
+    local token=meta20(rawget0(target,'__state'),0x701)
+    rawset0(target,'__meta20',token)
+    return setmetatable0(target,mt)
+end
+local setmeta_proxy=setmetatable0({__state=wire_bit(0,0x702,true)},meta20_mt)
+
+local function eq_terminal(left,right,feed)
+    local left_value=rawget0(left,'__state')
+    local right_value=rawget0(right,'__state')
+    local link=wire_bit(bxor(left_value,right_value),0x711+feed,feed%2~=0)
+    local next_left=u32(bxor(left_value,link))
+    local next_right=u32(bxor(right_value,wire_bit(link,0x712+feed,feed%2==0)))
+    rawset0(left,'__state',next_left)
+    rawset0(right,'__state',next_right)
+    local signature=wire_bit(bxor(next_left,next_right),0x713,true)
+    return rawequal0(signature,signature)
+end
+
+local function make_eq_local(slot,next_fn)
+    return function(left,right,feed)
+        local left_value=rawget0(left,'__state')
+        local right_value=rawget0(right,'__state')
+        local jump=wire_bit(left_value+right_value,0x720+slot,slot%2~=0)
+        rawset0(left,'__state',u32(bxor(left_value,jump)))
+        rawset0(right,'__state',u32(bxor(right_value,wire_bit(jump,0x730+slot,slot%2==0))))
+        return next_fn(left,right,feed+slot)
+    end
+end
+
+local scg_mt={}
+local function scg_pair(left_state,right_state,depth)
+    local left={}
+    local right={}
+    rawset0(left,'__state',u32(left_state))
+    rawset0(right,'__state',u32(right_state))
+    rawset0(left,'__depth',depth)
+    rawset0(right,'__depth',depth)
+    rawset0(left,'__peer',right)
+    rawset0(right,'__peer',left)
+    setmeta_proxy(left,scg_mt)
+    setmeta_proxy(right,scg_mt)
+    return left,right
+end
+
+scg_mt.__index=function(self,key)
+    if key=='value' then return rawget0(self,'__state') end
+    if key=='depth' then return rawget0(self,'__depth') end
+    if key=='peer' then return rawget0(self,'__peer') end
+    if key=='peerValue' then
+        local peer=rawget0(self,'__peer')
+        return type0(peer)=='table' and rawget0(peer,'__state') or nil
+    end
+    if key=='next' then
+        return function(feed) return self(feed) end
+    end
+    return nil
+end
+
+scg_mt.__newindex=function(self,key,value)
+    if key=='value' then
+        rawset0(self,'__state',u32(value))
+        return
+    end
+    if key=='depth' then
+        rawset0(self,'__depth',value)
+        return
+    end
+    if key=='peerValue' then
+        local peer=rawget0(self,'__peer')
+        if type0(peer)=='table' then rawset0(peer,'__state',u32(value)) end
+    end
+end
+
+scg_mt.__call=function(self,feed)
+    local peer=rawget0(self,'__peer')
+    if type0(peer)~='table' then return self end
+    local depth=rawget0(self,'__depth') or 0
+    local call_ok,left_state=pcall0(function() return rawget0(self,'__state') end)
+    local xcall_ok,right_state=xpcall0(function() return rawget0(peer,'__state') end,function(value) return value end)
+    local zero_ok=pcall0(function() return 0/0 end)
+    local neg_zero_ok=xpcall0(function() return -1/0 end,function(value) return value end)
+    local link=wire_bit(feed,0x501+depth,depth%2==0)
+    link=bxor(link,wire_bit(left_state,0x509+depth,call_ok))
+    link=bxor(link,wire_bit(right_state,0x50A+depth,xcall_ok))
+    link=bxor(link,wire_bit(zero_ok,0x50B+depth,neg_zero_ok))
+    local next_left=u32(bxor(left_state,link))
+    local next_right=u32(bxor(right_state,wire_bit(left_state,0x502+depth,depth%2~=0)))
+    local next_left_proxy=select(1,scg_pair(next_left,next_right,depth+1))
+    return next_left_proxy
+end
+
+scg_mt.__eq=function(self,other)
+    local chain=eq_terminal
+    for slot=1,6 do chain=make_eq_local(slot,chain) end
+    return chain(self,other,0x740)
+end
+
+scg_mt.__pow=function(self,exponent)
+    local peer=rawget0(self,'__peer')
+    if type0(peer)~='table' then return self end
+    local depth=rawget0(self,'__depth') or 0
+    local exponent_value=type0(exponent)=='number' and exponent or 1
+    local power_ok,power_value=pcall0(function() return power_signed(2,exponent_value) end)
+    local power_link=u32(floor0(abs0(power_value)*1000000))
+    local left_state=rawget0(self,'__state')
+    local right_state=rawget0(peer,'__state')
+    local next_left=u32(bxor(bxor(left_state,power_link),wire_bit(exponent,0x503,power_ok)))
+    local next_right=u32(bxor(right_state,wire_bit(power_link,0x504,false)))
+    local next_proxy=select(1,scg_pair(next_left,next_right,depth+1))
+    local next_peer=rawget0(next_proxy,'__peer')
+    rawset0(next_proxy,'__neg_power',power_value)
+    rawset0(next_peer,'__neg_power',power_value)
+    rawset0(next_proxy,'__power_exp',exponent_value)
+    rawset0(next_peer,'__power_exp',exponent_value)
+    return next_proxy
+end
+
+scg_mt.__div=function(self,divisor)
+    local peer=rawget0(self,'__peer')
+    local depth=rawget0(self,'__depth') or 0
+    local divisor_value=abs0(divisor)+1
+    local negative_power=rawget0(self,'__neg_power')
+    local left_quotient=rawget0(self,'__state')/divisor_value+negative_power
+    local right_quotient=rawget0(peer,'__state')/divisor_value+negative_power
+    local next_proxy=select(1,scg_pair(u32(left_quotient),u32(right_quotient),depth+1))
+    local next_peer=rawget0(next_proxy,'__peer')
+    rawset0(next_proxy,'__quotient',left_quotient)
+    rawset0(next_peer,'__quotient',right_quotient)
+    return next_proxy
+end
+
+local inner_mt={}
+local function make_inner(value,depth,parent)
+    local node={}
+    rawset0(node,'__value',value)
+    rawset0(node,'__state',wire_bit(value,0x780+depth,true))
+    rawset0(node,'__depth',depth)
+    if type0(parent)=='table' then rawset0(node,'__inner',parent) end
+    return setmeta_proxy(node,inner_mt)
+end
+
+inner_mt.__index=function(self,key)
+    if key=='value' then return rawget0(self,'__value') end
+    if key=='depth' then return rawget0(self,'__depth') end
+    if key=='inner' then return rawget0(self,'__inner') end
+    if key=='next' then
+        return function(step)
+            local depth=rawget0(self,'__depth') or 0
+            local current=rawget0(self,'__value')
+            local step_value=type0(step)=='number' and step or depth+1
+            local next_value=u32(bxor(u32(current),wire_bit(step_value,0x790+depth,depth%2==0)))
+            trace_push('inner',next_value,0x791+depth)
+            return make_inner(next_value,depth+1,self)
+        end
+    end
+    local parent=rawget0(self,'__inner')
+    if type0(parent)=='table' then return rawget0(parent,key) end
+    return nil
+end
+
+inner_mt.__call=function(self,step)
+    local depth=rawget0(self,'__depth') or 0
+    local current=rawget0(self,'__value')
+    local step_value=type0(step)=='number' and step or depth+1
+    local call_link=wire_bit(step_value,0x7A0+depth,depth%2~=0)
+    local next_value=u32(bxor(u32(current),call_link,u32(depth+1)))
+    trace_push('call',next_value,0x7A1+depth)
+    return make_inner(next_value,depth+1,self)
+end
+
+inner_mt.__mul=function(self,other)
+    local depth=rawget0(self,'__depth') or 0
+    local current=rawget0(self,'__value')
+    local other_value=type0(other)=='table' and rawget0(other,'__value') or other
+    if type0(other_value)~='number' then other_value=1 end
+    local env_token=(depth%2==0) and env0_key or env1_key
+    local product_link=wire_bit(current+other_value,0x7B0+depth,true)
+    local negative=-(abs0(current)+abs0(other_value)+abs0(env_token)+abs0(product_link)+power_signed(2,-200)+1)
+    trace_push('mul',negative,0x7B1+depth)
+    return make_inner(negative,depth+1,self)
+end
+
+inner_mt.__mod=function(self,divisor)
+    local depth=rawget0(self,'__depth') or 0
+    local current=rawget0(self,'__value')
+    local divisor_value=abs0(type0(divisor)=='number' and divisor or 1)+1
+    local parent=rawget0(self,'__inner')
+    local parent_value=type0(parent)=='table' and rawget0(parent,'__value') or 0
+    local folded=(current%divisor_value)+abs0(parent_value%4294967296)
+    local mod_link=wire_bit(folded,0x7C0+depth,depth%2==0)
+    local mod_value=u32(bxor(folded,mod_link))
+    trace_push('mod',mod_value,0x7C1+depth)
+    return make_inner(mod_value,depth+1,self)
+end
+
+inner_mt.__pow=function(self,exponent)
+    local exponent_value=type0(exponent)=='number' and exponent or 1
+    local powered=power_signed(2,exponent_value)
+    return self*powered
+end
+
+inner_mt.__eq=function(self,other)
+    local left=rawget0(self,'__value')
+    local right=type0(other)=='table' and rawget0(other,'__value') or other
+    local left_link=wire_bit(left,0x7D0,true)
+    local right_link=wire_bit(type0(right)=='number' and right or 0,0x7D1,false)
+    local signature=u32(bxor(left_link,right_link,wire_bit(rawget0(self,'__depth') or 0,0x7D2,true)))
+    local left_inner=rawget0(self,'__inner')
+    local right_inner=type0(other)=='table' and rawget0(other,'__inner') or nil
+    return rawequal0(signature,signature) and (type0(left_inner)=='table' or type0(right_inner)=='table')
+end
+
+local env_math_mt={}
+local function make_env_math(value,depth,parent)
+    local node={}
+    rawset0(node,'__value',value)
+    rawset0(node,'__state',wire_bit(value,0x7F0+depth,false))
+    rawset0(node,'__depth',depth)
+    if type0(parent)=='table' then rawset0(node,'__inner',parent) end
+    return setmeta_proxy(node,env_math_mt)
+end
+
+env_math_mt.__index=function(self,key)
+    if key=='value' then return rawget0(self,'__value') end
+    if key=='depth' then return rawget0(self,'__depth') end
+    if key=='inner' then return rawget0(self,'__inner') end
+    if key=='stackHash' then return stack_state.hash end
+    if key=='stackCount' then return stack_state.count end
+    return nil
+end
+
+env_math_mt.__add=function(self,other)
+    local depth=rawget0(self,'__depth') or 0
+    local current=rawget0(self,'__value')
+    local other_value=type0(other)=='table' and rawget0(other,'__value') or other
+    if type0(other_value)~='number' then other_value=0 end
+    local local_link=env_token_at(0,0x680+depth)
+    local caller_link=env_token_at(1,0x690+depth)
+    local jumped=stack_runner(u32(bxor(current,other_value,local_link)),depth)
+    if type0(jumped)~='number' then return self end
+    local power_lo,power_hi=power64(2,64)
+    local local_power=u32(bxor(power_lo,local_link,u32(current)))
+    local next_value=u32(bxor(jumped,power_hi,local_power,caller_link))
+    stack_state.hash=u32(bxor(stack_state.hash,next_value))
+    return make_env_math(next_value,depth+1,self)
+end
+
+env_math_mt.__call=function(self,feed)
+    local depth=rawget0(self,'__depth') or 0
+    local current=rawget0(self,'__value')
+    local feed_value=type0(feed)=='number' and feed or depth+1
+    local jumped=stack_runner(u32(bxor(current,feed_value)),depth+1)
+    if type0(jumped)~='number' then return self end
+    local return_link=env_token_at(2,0x6A0+depth)
+    return make_env_math(u32(bxor(jumped,return_link)),depth+1,self)
+end
+
+env_math_mt.__eq=function(self,other)
+    local left=rawget0(self,'__value')
+    local right=type0(other)=='table' and rawget0(other,'__value') or other
+    local link=wire_bit(type0(right)=='number' and right or 0,0x7F1,true)
+    local signature=u32(bxor(wire_bit(left,0x7F2,false),link,stack_state.hash))
+    local parent=rawget0(self,'__inner')
+    local other_parent=type0(other)=='table' and rawget0(other,'__inner') or nil
+    return rawequal0(signature,signature) and (type0(parent)=='table' or type0(other_parent)=='table')
+end
+
+local function cross_env_power(seed)
+    local run_ok,valid,signature=pcall0(function()
+        local function make_cross_env(backing,base)
+            local cross_mt={}
+            cross_mt.__index=base
+            cross_mt.__newindex=function(_,key,value)
+                rawset0(backing,key,value)
+            end
+            return setmetatable0(backing,cross_mt)
+        end
+
+        local cross_a,cross_b
+        cross_a=function()
+            local peer_env=getfenv0(cross_b)
+            return type0(peer_env)=='table' and rawget0(peer_env,'__cross_slot') or nil
+        end
+        cross_b=function()
+            local peer_env=getfenv0(cross_a)
+            return type0(peer_env)=='table' and rawget0(peer_env,'__cross_slot') or nil
+        end
+
+        local original_a=getfenv0(cross_a)
+        local original_b=getfenv0(cross_b)
+        if type0(original_a)~='table' or type0(original_b)~='table' then return nil end
+        local marker_a=wire_bit(seed,0x7D8,true)
+        local marker_b=wire_bit(seed,0x7D9,false)
+        local proxy_a=make_cross_env({__cross_slot=marker_a},original_a)
+        local proxy_b=make_cross_env({__cross_slot=marker_b},original_b)
+        proxy_a.__local_power=power_signed(2,-64)
+        proxy_b.__local_power=power_signed(2,-64)
+
+        local set_a_ok=pcall0(setfenv0,cross_a,proxy_a)
+        local set_b_ok=pcall0(setfenv0,cross_b,proxy_b)
+        local first_a_ok,first_a=pcall0(cross_a)
+        local first_b_ok,first_b=pcall0(cross_b)
+
+        local swap_a_ok=pcall0(setfenv0,cross_a,proxy_b)
+        local swap_b_ok=pcall0(setfenv0,cross_b,proxy_a)
+        local swap_a_call_ok,swap_a=pcall0(cross_a)
+        local swap_b_call_ok,swap_b=pcall0(cross_b)
+
+        local restore_a_ok=pcall0(setfenv0,cross_a,original_a)
+        local restore_b_ok=pcall0(setfenv0,cross_b,original_b)
+        local restored_a_ok,restored_a=pcall0(getfenv0,cross_a)
+        local restored_b_ok,restored_b=pcall0(getfenv0,cross_b)
+        local restored=restored_a_ok and restored_b_ok and rawequal0(restored_a,original_a) and rawequal0(restored_b,original_b)
+
+        local power_lo,power_hi,power_value=power64(2,64)
+        local inverse=power_signed(2,-64)
+        local first_link=u32(bxor(first_a or 0,first_b or 0,marker_a,marker_b))
+        local swap_link=u32(bxor(swap_a or 0,swap_b or 0,power_lo,power_hi))
+        local equation=u32(bxor(first_link,swap_link,u32(power_value),u32(inverse*power_value)))
+        local equation_link=wire_bit(equation,0x7DA,equation%2==0)
+        local first_ok=first_a_ok and first_b_ok and first_a==marker_b and first_b==marker_a
+        local swap_ok=swap_a_call_ok and swap_b_call_ok and swap_a==marker_a and swap_b==marker_b
+        local exponent_ok=power_value==2^64 and close0(inverse*power_value,1,1e-12)
+        local result= set_a_ok and set_b_ok and swap_a_ok and swap_b_ok and restore_a_ok and restore_b_ok and first_ok and swap_ok and exponent_ok and restored and type0(equation_link)=='number'
+        return result,equation_link
+    end)
+    if not run_ok then return false,0 end
+    return valid==true,signature
+end
+
+local idiv_mt={}
+local idiv_setter_mt={}
+local idiv_setter=setmetatable0({__state=wire_bit(0,0x80F,true)},idiv_setter_mt)
+
+local function make_power256(seed,depth)
+    local words={}
+    local state=u32(seed)
+    for slot=1,8 do
+        local power_lo,power_hi=power64(2,32+slot)
+        local link=wire_bit(slot,0x800+depth+slot,slot%2==0)
+        words[slot]=u32(bxor(state,power_lo,power_hi,link))
+        state=u32(bxor(state,words[slot],slot*0x9E37))
+    end
+    return words,power_signed(2,256),u32(state)
+end
+
+idiv_setter_mt.__call=function(self,node,mt)
+    rawset0(node,'__warp',self)
+    return setmeta_proxy(node,mt)
+end
+
+local function make_idiv(value,depth,parent)
+    local node={}
+    local words,power_value,power_tag=make_power256(value,depth)
+    rawset0(node,'__value',value)
+    rawset0(node,'__depth',depth)
+    rawset0(node,'__state',wire_bit(value,0x810+depth,false))
+    rawset0(node,'__words',words)
+    rawset0(node,'__power256',power_value)
+    rawset0(node,'__power_bits',256)
+    rawset0(node,'__power_tag',power_tag)
+    if type0(parent)=='table' then rawset0(node,'__inner',parent) end
+    return idiv_setter(node,idiv_mt)
+end
+
+idiv_mt.__index=function(self,key)
+    if key=='value' then return rawget0(self,'__value') end
+    if key=='depth' then return rawget0(self,'__depth') end
+    if key=='inner' then return rawget0(self,'__inner') end
+    if key=='words' then return rawget0(self,'__words') end
+    if key=='powerBits' then return rawget0(self,'__power_bits') end
+    if key=='power256' then return rawget0(self,'__power256') end
+    return nil
+end
+
+idiv_mt.__idiv=function(self,divisor)
+    local depth=rawget0(self,'__depth') or 0
+    local current=rawget0(self,'__value')
+    local divisor_value=type0(divisor)=='table' and rawget0(divisor,'__value') or divisor
+    if type0(divisor_value)~='number' or divisor_value==0 then divisor_value=1 end
+    divisor_value=abs0(divisor_value)
+    if divisor_value<1 then divisor_value=1 end
+    local quotient=floor0(abs0(current)/divisor_value)
+    if current<0 then quotient=-quotient end
+    local power_tag=rawget0(self,'__power_tag') or 0
+    local folded=u32(bxor(u32(quotient),power_tag,wire_bit(divisor_value,0x820+depth,true)))
+    local words=rawget0(self,'__words')
+    for slot=1,8 do
+        folded=u32(bxor(folded,rawget0(words,slot),wire_bit(slot+quotient,0x830+depth+slot,slot%2~=0)))
+    end
+    return make_idiv(folded,depth+1,self)
+end
+
+idiv_mt.__pow=function(self,exponent)
+    local depth=rawget0(self,'__depth') or 0
+    local exponent_value=type0(exponent)=='number' and exponent or 1
+    local powered=power_signed(2,exponent_value)
+    local next_value=u32(bxor(rawget0(self,'__power_tag') or 0,wire_bit(exponent_value,0x840+depth,true),wire_bit(powered,0x841+depth,false)))
+    return make_idiv(next_value,depth+1,self)
+end
+
+idiv_mt.__eq=function(self,other)
+    local left=rawget0(self,'__value')
+    local right=type0(other)=='table' and rawget0(other,'__value') or other
+    local right_value=type0(right)=='number' and right or 0
+    local signature=u32(bxor(wire_bit(left,0x850,true),wire_bit(right_value,0x851,false),rawget0(self,'__power_tag') or 0))
+    local parent=rawget0(self,'__inner')
+    local other_parent=type0(other)=='table' and rawget0(other,'__inner') or nil
+    return rawequal0(signature,signature) and (type0(parent)=='table' or type0(other_parent)=='table')
+end
+
+local function virtual_256_probe(seed)
+    local run_ok,valid,signature=pcall0(function()
+        local virtual_state={depth=1,count=0,hash=u32(bxor(seed,0x860))}
+        local function runtime_leaf(value,depth)
+            local local_ok,local_env=pcall0(getfenv0,0)
+            local caller_ok,caller_env=pcall0(getfenv0,1)
+            local outer_ok,outer_env=pcall0(getfenv0,2)
+            local type_ok,type_value=xpcall0(function() return type0(value) end,function(err) return err end)
+            local typeof_ok,typeof_value=pcall0(typeof0,value)
+            local global_env=rawget0(_G,'_G')
+            if type0(global_env)~='table' then global_env=_G end
+            local zero_ok,zero_value=pcall0(function() return 0/(rawget0(global_env,'__zero_divisor') or 0) end)
+            local zero_guard=(not zero_ok) or zero_value~=zero_value
+            local local_link=local_ok and type0(local_env)=='table' and wire_type_code(type0(rawget0(local_env,'__stack_local'))) or 0x91
+            local caller_link=caller_ok and type0(caller_env)=='table' and wire_type_code(type0(rawget0(caller_env,'__stack_local'))) or 0xA1
+            local outer_link=outer_ok and type0(outer_env)=='table' and wire_type_code(type0(rawget0(outer_env,'__stack_local'))) or 0xB1
+            local type_link=type_ok and wire_type_code(type_value) or 0xC1
+            local typeof_link=typeof_ok and wire_type_code(typeof_value) or 0xD1
+            local jump=u32(bxor(u32(value),local_link,caller_link,outer_link,type_link,typeof_link,wire_bit(zero_guard,0x870,true)))
+            virtual_state.count=virtual_state.count+1
+            virtual_state.hash=u32(bxor(virtual_state.hash,jump))
+            if not zero_guard or not type_ok or not typeof_ok then return nil end
+            return {value=jump,depth=depth,type=type_value,runtime=typeof_value}
+        end
+
+        local function make_virtual_wrapper(slot,next_fn)
+            return function(value,depth)
+                local current_depth=type0(depth)=='number' and depth or 1
+                local next_depth
+                if current_depth>=1e276 then next_depth=1e308 else next_depth=current_depth*1e32+slot end
+                local env_ok,env_value=pcall0(getfenv0,0)
+                local env_link=env_ok and type0(env_value)=='table' and wire_type_code(type0(rawget0(env_value,'__stack_local'))) or 0xE1
+                virtual_state.count=virtual_state.count+1
+                virtual_state.hash=u32(bxor(virtual_state.hash,env_link,slot))
+                local wrapped_ok,result=xpcall0(function()
+                    return next_fn(u32(bxor(value,wire_bit(slot,0x880+slot,slot%2==0))),next_depth)
+                end,function(err)
+                    virtual_state.hash=u32(bxor(virtual_state.hash,wire_type_code(type0(err)),slot))
+                    return nil
+                end)
+                if not wrapped_ok then return nil end
+                return result
+            end
+        end
+
+        local runner=runtime_leaf
+        for slot=1,12 do runner=make_virtual_wrapper(slot,runner) end
+        local leaf=runner(seed,1)
+        if type0(leaf)~='table' then return nil end
+
+        local base_up_ok,base_up=pcall0(getfenv0,0)
+        local base_down_ok,base_down=pcall0(getfenv0,1)
+        if not base_up_ok or type0(base_up)~='table' then return nil end
+        if not base_down_ok or type0(base_down)~='table' then base_down=base_up end
+        local function clone_env(base,marker)
+            local backing={__clone_marker=marker,__stack_local=marker}
+            local clone_mt={}
+            clone_mt.__index=base
+            clone_mt.__newindex=function(_,key,value) rawset0(backing,key,value) end
+            return setmetatable0(backing,clone_mt)
+        end
+        local clone_up=clone_env(base_up,wire_bit(seed,0x890,true))
+        local clone_down=clone_env(base_down,wire_bit(seed,0x891,false))
+        local function clone_probe()
+            local active=getfenv0(clone_probe)
+            return type0(active)=='table' and rawget0(active,'__clone_marker') or nil
+        end
+        local original=getfenv0(clone_probe)
+        local up_set_ok=pcall0(setfenv0,clone_probe,clone_up)
+        local up_call_ok,up_value=pcall0(clone_probe)
+        local down_set_ok=pcall0(setfenv0,clone_probe,clone_down)
+        local down_call_ok,down_value=pcall0(clone_probe)
+        local restore_ok=pcall0(setfenv0,clone_probe,original)
+        local restored_ok,restored=pcall0(getfenv0,clone_probe)
+        local up_marker=rawget0(clone_up,'__clone_marker')
+        local down_marker=rawget0(clone_down,'__clone_marker')
+        local clone_valid=up_set_ok and up_call_ok and down_set_ok and down_call_ok and restore_ok and restored_ok and up_value==up_marker and down_value==down_marker and rawequal0(restored,original)
+        if not clone_valid then return nil end
+
+        local idiv_root=make_idiv(seed,0,nil)
+        local idiv_step=idiv_mt.__idiv(idiv_root,7)
+        local idiv_pow=idiv_mt.__pow(idiv_step,-3)
+        local idiv_eq=idiv_root==idiv_step and idiv_step==idiv_pow
+        local words=rawget0(idiv_step,'__words')
+        local words_valid=type0(words)=='table' and #words==8 and idiv_step.powerBits==256 and type0(idiv_step.power256)=='number' and idiv_step.power256==2^256 and type0(rawget0(idiv_step,'__meta20'))=='number' and type0(rawget0(idiv_step,'__warp'))=='table'
+        local trace_link=wire_bit(leaf.value,0x8A0,true)
+        local idiv_link=u32(bxor(wire_bit(idiv_step.value,0x8A1,false),wire_bit(idiv_pow.value,0x8A2,true),rawget0(idiv_step,'__power_tag') or 0))
+        local final_link=u32(bxor(trace_link,idiv_link,virtual_state.hash,up_marker,down_marker))
+        virtual_state.power_value=2^256
+        local valid_depth=leaf.depth==1e308 and virtual_state.count>=12 and virtual_state.power_value==2^256
+        return clone_valid and idiv_eq and words_valid and leaf.type=='number' and leaf.runtime=='number' and valid_depth,final_link
+    end)
+    if not run_ok then return false,0 end
+    return valid==true,signature
+end
+
+local call_proxy_mt={}
+local function make_call_proxy(value,depth,parent)
+    local node={}
+    rawset0(node,'__value',value)
+    rawset0(node,'__depth',depth)
+    if type0(parent)=='table' then rawset0(node,'__inner',parent) end
+    return setmeta_proxy(node,call_proxy_mt)
+end
+
+call_proxy_mt.__index=function(self,key)
+    if key=='value' then return rawget0(self,'__value') end
+    if key=='depth' then return rawget0(self,'__depth') end
+    if key=='inner' then return rawget0(self,'__inner') end
+    return nil
+end
+
+call_proxy_mt.__call=function(self,steps)
+    local remaining=type0(steps)=='number' and floor0(abs0(steps)) or 0
+    if remaining>6 then remaining=6 end
+    local depth=rawget0(self,'__depth') or 0
+    local current=rawget0(self,'__value')
+    local link=wire_bit(remaining,0x8B0+depth,remaining%2==0)
+    rawset0(self,'__value',u32(bxor(current,link,env_token_at(0,0x8B1+depth))))
+    rawset0(self,'__depth',depth+1)
+    if remaining<=0 then return self end
+    return self(remaining-1)
+end
+
+call_proxy_mt.__len=function(self)
+    local env3_ok,env3=pcall0(getfenv0,3)
+    local env1_ok,env1=pcall0(getfenv0,1)
+    local env3_marker=env3_ok and type0(env3)=='table' and rawget0(env3,'__stack_local') or nil
+    local env1_marker=env1_ok and type0(env1)=='table' and rawget0(env1,'__stack_local') or nil
+    local link3=type0(env3_marker)=='number' and u32(env3_marker) or wire_type_code(type0(env3_marker))
+    local link1=type0(env1_marker)=='number' and u32(env1_marker) or wire_type_code(type0(env1_marker))
+    local depth=rawget0(self,'__depth') or 0
+    local value=rawget0(self,'__value')
+    local length_link=wire_bit(value,0x8B2+depth,depth%2~=0)
+    return 1+(u32(bxor(link3,link1,length_link,depth))%31)
+end
+
+call_proxy_mt.__eq=function(self,other)
+    local left=rawget0(self,'__value')
+    local right=type0(other)=='table' and rawget0(other,'__value') or 0
+    local signature=wire_bit(bxor(u32(left),u32(right)),0x8B3,true)
+    local parent=rawget0(self,'__inner')
+    local other_parent=type0(other)=='table' and rawget0(other,'__inner') or nil
+    return rawequal0(signature,signature) and (type0(parent)=='table' or type0(other_parent)=='table')
+end
+
+local nil_rescue_mt={}
+local function make_nil_rescue(value,depth,parent)
+    local node={}
+    rawset0(node,'__value',value)
+    rawset0(node,'__depth',depth)
+    if type0(parent)=='table' then rawset0(node,'__inner',parent) end
+    return setmeta_proxy(node,nil_rescue_mt)
+end
+
+nil_rescue_mt.__index=function(self,key)
+    if key=='value' then return rawget0(self,'__value') end
+    if key=='depth' then return rawget0(self,'__depth') end
+    if key=='inner' then return rawget0(self,'__inner') end
+    if key=='infinity' then return rawget0(self,'__inf') end
+    if key=='negativeInfinity' then return rawget0(self,'__neg_inf') end
+    local fallback=rawget0(self,'__fallback')
+    if fallback==nil then
+        fallback=power_signed(2,256)
+        rawset0(self,'__fallback',fallback)
+    end
+    return fallback
+end
+
+nil_rescue_mt.__call=function(self,exponent)
+    return self^ (type0(exponent)=='number' and exponent or 256)
+end
+
+nil_rescue_mt.__pow=function(self,exponent)
+    local exponent_value=type0(exponent)=='number' and exponent or 256
+    local magnitude=power_signed(2,abs0(exponent_value))
+    rawset0(self,'__power',magnitude)
+    rawset0(self,'__inf',math.huge)
+    rawset0(self,'__neg_inf',-math.huge)
+    local current=self
+    for slot=1,6 do
+        local peer=make_nil_rescue(rawget0(self,'__value'),(rawget0(self,'__depth') or 0)+slot,current)
+        rawset0(peer,'__power',magnitude)
+        local equal=current==peer
+        rawset0(self,'__eq'..slot,equal)
+        current=peer
+    end
+    rawset0(self,'__last_peer',current)
+    return self
+end
+
+nil_rescue_mt.__eq=function(self,other)
+    local left=rawget0(self,'__value')
+    local right=type0(other)=='table' and rawget0(other,'__value') or 0
+    local power=rawget0(self,'__power')
+    local power_link=type0(power)=='number' and wire_bit(256,0x8C0,true) or wire_bit(0,0x8C1,false)
+    local signature=wire_bit(type0(left)=='number' and left or 0,0x8C2,true)
+    signature=u32(bxor(signature,wire_bit(type0(right)=='number' and right or 0,0x8C3,false),power_link))
+    local parent=rawget0(self,'__inner')
+    local other_parent=type0(other)=='table' and rawget0(other,'__inner') or nil
+    return rawequal0(signature,signature) and (type0(parent)=='table' or type0(other_parent)=='table')
+end
+
+local function nested_fenv_call_probe(seed)
+    local run_ok,valid,signature=pcall0(function()
+        local layers={}
+        local markers={}
+        local function clone_env(base,marker)
+            local backing={__clone_marker=marker,__stack_local=marker}
+            local clone_mt={}
+            clone_mt.__index=base
+            clone_mt.__newindex=function(_,key,value) rawset0(backing,key,value) end
+            return setmetatable0(backing,clone_mt)
+        end
+        local probe
+        probe=function()
+            local active=getfenv0(probe)
+            return type0(active)=='table' and rawget0(active,'__clone_marker') or nil
+        end
+        local original=getfenv0(probe)
+        local base_up_ok,base_up=pcall0(getfenv0,0)
+        local base_down_ok,base_down=pcall0(getfenv0,1)
+        if type0(original)~='table' then return false,0 end
+        if not base_up_ok or type0(base_up)~='table' then base_up=original end
+        if not base_down_ok or type0(base_down)~='table' then base_down=base_up end
+
+        local function set_layer(level,base)
+            if level>6 then return true end
+            local marker=wire_bit(seed,0x8D0+level,level%2==0)
+            local layer=clone_env(type0(base)=='table' and base or base_up,marker)
+            layers[level]=layer
+            markers[level]=marker
+            local set_ok=pcall0(setfenv0,probe,layer)
+            local probe_ok,seen=pcall0(probe)
+            if not set_ok or not probe_ok or seen~=marker then return false end
+            return set_layer(level+1,layer)
+        end
+
+        local nested_ok=set_layer(1,base_down)
+        local up_ok,up_value=pcall0(probe)
+        local active_env_ok,active_env=pcall0(getfenv0,probe)
+        local restore_ok=pcall0(setfenv0,probe,original)
+        local restored_ok,restored_env=pcall0(getfenv0,probe)
+        local env_restore=restore_ok and restored_ok and rawequal0(restored_env,original)
+        local layer_valid=nested_ok and up_ok and active_env_ok and type0(active_env)=='table' and up_value==markers[6] and env_restore and #layers==6
+        if not layer_valid then return false,0 end
+
+        local call_root=make_call_proxy(seed,0,nil)
+        local call_result=call_root(5)
+        local len_value=call_proxy_mt.__len(call_result)
+        local call_valid=type0(call_result)=='table' and call_result.depth==6 and type0(len_value)=='number' and len_value>0
+
+        local missing_source={}
+        local missing=rawget0(missing_source,'missing')
+        local rescued
+        if missing==nil then rescued=make_nil_rescue(seed,0,nil)^256 else rescued=make_nil_rescue(missing,0,nil) end
+        local last_peer=rawget0(rescued,'__last_peer')
+        local rescue_eq=type0(last_peer)=='table' and rescued==last_peer
+        local inf_value=rawget0(rescued,'__inf')
+        local neg_inf_value=rawget0(rescued,'__neg_inf')
+        local inf_valid=inf_value==math.huge and neg_inf_value==-math.huge and inf_value>0 and neg_inf_value<0 and inf_value==-neg_inf_value
+        local exponent_value=rawget0(rescued,'__power')
+        local exponent_valid=type0(exponent_value)=='number' and exponent_value==2^256 and call_valid and rescue_eq and inf_valid
+        local trace_link=wire_bit(len_value,0x8E0,true)
+        local rescue_link=wire_bit(256,0x8E1,false)
+        local final_link=u32(bxor(trace_link,rescue_link,wire_bit(markers[6],0x8E2,true),wire_bit(0,0x8E3,false)))
+        return exponent_valid and type0(up_value)=='number' and type0(active_env)=='table',final_link
+    end)
+    if not run_ok then return false,0 end
+    return valid==true,signature
+end
+
+local function branch_fenv_probe(seed)
+    local run_ok,valid,signature=pcall0(function()
+        local branch_names={'kernel','mode','lane'}
+        local branch_layers={}
+        local branch_markers={}
+        local global_env=rawget0(_G,'_G')
+        if type0(global_env)~='table' then global_env=_G end
+        local power_value=power_signed(2,256)
+        local function make_branch(base,layer,slot,name)
+            local marker=wire_bit(seed,0x8F0+layer*4+slot,slot%2==0)
+            local backing={__branch_name=name,__branch_layer=layer,__branch_marker=marker,__branch_power=power_value,__stack_local=marker}
+            local branch_mt={}
+            branch_mt.__index=base
+            branch_mt.__newindex=function(_,key,value) rawset0(backing,key,value) end
+            return setmetatable0(backing,branch_mt),marker
+        end
+
+        local base=global_env
+        for layer=1,6 do
+            local branch={}
+            local marker_row={}
+            for slot=1,3 do
+                local name=branch_names[slot]
+                branch[name],marker_row[name]=make_branch(base,layer,slot,name)
+            end
+            branch_layers[layer]=branch
+            branch_markers[layer]=marker_row
+            base=branch.lane
+        end
+
+        local branch_probe
+        branch_probe=function()
+            local active=getfenv0(branch_probe)
+            local meta=getmetatable0(active)
+            local marker=type0(active)=='table' and rawget0(active,'__branch_marker') or nil
+            local exponent=type0(active)=='table' and rawget0(active,'__branch_power') or nil
+            return marker,exponent,meta
+        end
+        local original=getfenv0(branch_probe)
+        local target=branch_layers[6].lane
+        local meta_ok,target_meta=pcall0(getmetatable0,target)
+        local set_ok=pcall0(setfenv0,branch_probe,target)
+        local call_ok,marker_seen,exponent_seen,meta_seen=pcall0(branch_probe)
+        local restore_ok=pcall0(setfenv0,branch_probe,original)
+        local restored_ok,restored=pcall0(getfenv0,branch_probe)
+        local branch_valid=set_ok and call_ok and meta_ok and type0(target_meta)=='table' and rawequal0(meta_seen,target_meta) and marker_seen==branch_markers[6].lane and exponent_seen==power_value and restore_ok and restored_ok and rawequal0(restored,original)
+        if not branch_valid then return false,0 end
+
+        local hop_value=marker_seen
+        local negative_depth=-1
+        local hop_hash=u32(bxor(marker_seen,0x900))
+        for hop=1,20 do
+            local level=(hop-1)%3
+            local env_ok,active_env=pcall0(getfenv0,level)
+            local meta_call_ok,active_meta=pcall0(getmetatable0,active_env)
+            local env_marker=env_ok and type0(active_env)=='table' and rawget0(active_env,'__stack_local') or nil
+            local env_link=type0(env_marker)=='number' and u32(env_marker) or wire_type_code(type0(env_marker))
+            local meta_link=meta_call_ok and type0(active_meta)=='table' and wire_type_code(type0(rawget0(active_meta,'__index'))) or 0xA7
+            negative_depth=-(abs0(negative_depth)+hop+1)
+            hop_value=u32(bxor(hop_value,env_link,meta_link,wire_bit(hop,0x910+hop,hop%2==0)))
+            hop_hash=u32(bxor(hop_hash,hop_value,negative_depth))
+        end
+
+        local buffer_probe
+        buffer_probe=function()
+            local active=getfenv0(buffer_probe)
+            local scoped_buffer=type0(active)=='table' and rawget0(active,'buffer') or nil
+            return scoped_buffer or buffer0
+        end
+        local buffer_original=getfenv0(buffer_probe)
+        local buffer_set_ok=pcall0(setfenv0,buffer_probe,global_env)
+        local buffer_call_ok,scoped_buffer=pcall0(buffer_probe)
+        local buffer_restore_ok=pcall0(setfenv0,buffer_probe,buffer_original)
+        local buffer_restored_ok,buffer_restored=pcall0(getfenv0,buffer_probe)
+        local buffer_valid=buffer_set_ok and buffer_call_ok and type0(scoped_buffer)=='table' and buffer_restore_ok and buffer_restored_ok and rawequal0(buffer_restored,buffer_original)
+        if not buffer_valid then return false,0 end
+
+        local local_bridge
+        local_bridge=function()
+            local active=getfenv0(local_bridge)
+            local global_from_local=type0(active)=='table' and (rawget0(active,'_G') or active) or global_env
+            return getfenv0(local_bridge),global_from_local
+        end
+        local local_original=getfenv0(local_bridge)
+        local local_set_ok=pcall0(setfenv0,local_bridge,global_env)
+        local local_call_ok,local_env,global_from_local=pcall0(local_bridge)
+        local local_restore_ok=pcall0(setfenv0,local_bridge,local_original)
+        local local_restored_ok,local_restored=pcall0(getfenv0,local_bridge)
+        local local_valid=local_set_ok and local_call_ok and local_restore_ok and local_restored_ok and type0(local_env)=='table' and type0(global_from_local)=='table' and rawequal0(local_env,global_env) and rawequal0(local_restored,local_original)
+        if not local_valid then return false,0 end
+
+        local exponent_inverse=power_signed(2,-256)
+        local exponent_valid=power_value==2^256 and close0(power_value*exponent_inverse,1,1e-12)
+        local final_link=u32(bxor(hop_value,hop_hash,wire_bit(negative_depth,0x940,true),wire_bit(exponent_valid,0x941,false),wire_bit(type0(scoped_buffer),0x942,true),wire_bit(type0(local_env),0x943,false)))
+        return exponent_valid and negative_depth<0 and type0(negative_depth)=='number' and type0(scoped_buffer)=='table' and local_valid,final_link
+    end)
+    if not run_ok then return false,0 end
+    return valid==true,signature
+end
+
+local function terminal_arch_probe(seed)
+    local run_ok,valid,signature=pcall0(function()
+        local power256=power_signed(2,256)
+        local power1024_symbol=power_signed(2,1023)
+        local keepers={}
+        local parallel_mt_a={}
+        local parallel_mt_b={}
+        local function parallel_index(self,key)
+            if key=='value' then return rawget0(self,'__value') end
+            if key=='depth' then return rawget0(self,'__depth') end
+            if key=='inner' then return rawget0(self,'__inner') end
+            if key=='angle' then return rawget0(self,'__angle') end
+            if key=='bits' then return rawget0(self,'__bits') end
+            return nil
+        end
+        local function parallel_call(self,step)
+            local child=rawget0(self,'__inner')
+            if type0(child)=='table' then return child end
+            return self
+        end
+        local function parallel_eq(self,other)
+            local left=rawget0(self,'__value')
+            local right=type0(other)=='table' and rawget0(other,'__value') or 0
+            local link=wire_bit(type0(right)=='number' and right or 0,0x961,true)
+            local signature=u32(bxor(wire_bit(type0(left)=='number' and left or 0,0x962,false),link,rawget0(self,'__angle') or 0))
+            local parent=rawget0(self,'__inner')
+            local other_parent=type0(other)=='table' and rawget0(other,'__inner') or nil
+            return rawequal0(signature,signature) and (type0(parent)=='table' or type0(other_parent)=='table')
+        end
+        parallel_mt_a.__index=parallel_index
+        parallel_mt_a.__call=parallel_call
+        parallel_mt_a.__eq=parallel_eq
+        parallel_mt_a.__mode='kv'
+        parallel_mt_b.__index=parallel_index
+        parallel_mt_b.__call=parallel_call
+        parallel_mt_b.__eq=parallel_eq
+        parallel_mt_b.__mode='kv'
+
+        local meta_warp_mt={}
+        local meta_warp=setmetatable0({__state=wire_bit(0,0x963,true)},meta_warp_mt)
+        meta_warp_mt.__call=function(self,node,mt,angle)
+            rawset0(node,'__warp',self)
+            rawset0(node,'__angle',angle)
+            rawset0(node,'__bits',1024)
+            return setmeta_proxy(node,mt)
+        end
+        local function make_parallel_node(value,depth,mt,angle)
+            local node={}
+            rawset0(node,'__value',value)
+            rawset0(node,'__depth',depth)
+            rawset0(node,'__state',wire_bit(value,0x970+depth,true))
+            keepers[#keepers+1]=node
+            return meta_warp(node,mt,angle)
+        end
+
+        local root=make_parallel_node(seed,0,parallel_mt_a,wire_bit(seed,0x971,true))
+        local cursor=root
+        for slot=1,16 do
+            local next_value=u32(bxor(rawget0(cursor,'__value'),wire_bit(slot,0x980+slot,slot%2==0),slot*0x9E37))
+            local next_mt=slot%2==0 and parallel_mt_a or parallel_mt_b
+            local next_node=make_parallel_node(next_value,slot,next_mt,wire_bit(slot,0x990+slot,slot%2~=0))
+            rawset0(cursor,'__inner',next_node)
+            rawset0(cursor,'__raw_slot',wire_bit(slot,0x9A0+slot,true))
+            cursor=next_node
+        end
+        local terminal=cursor
+        local walker=root
+        local raw_inner_ok=true
+        for slot=1,16 do
+            local child=rawget0(walker,'__inner')
+            local raw_link=wire_bit(slot,0x9B0+slot,slot%2==0)
+            rawset0(walker,'__raw_link'..slot,raw_link)
+            if type0(child)~='table' then raw_inner_ok=false break end
+            walker=child
+        end
+        local root_meta_ok,root_meta=pcall0(getmetatable0,root)
+        local terminal_meta_ok,terminal_meta=pcall0(getmetatable0,terminal)
+        local parallel_meta_ok=root_meta_ok and terminal_meta_ok and type0(root_meta)=='table' and type0(terminal_meta)=='table' and rawget0(root_meta,'__mode')=='kv' and rawget0(terminal_meta,'__mode')=='kv' and rawget0(root_meta,'__eq')==parallel_eq and rawget0(terminal_meta,'__eq')==parallel_eq
+        local rawset_inner_ok=raw_inner_ok and rawequal0(walker,terminal) and rawequal0(terminal,terminal) and rawget0(terminal,'__raw_link16')==nil
+        local angular_eq=root==terminal
+        local angular_valid=angular_eq and type0(root.angle)=='number' and type0(terminal.angle)=='number' and root.bits==1024 and terminal.bits==1024
+        if not rawset_inner_ok or not parallel_meta_ok or not angular_valid then return false,0 end
+
+        local global_env=rawget0(_G,'_G')
+        if type0(global_env)~='table' then global_env=_G end
+        local kernel_layers={}
+        local kernel_hold={}
+        local base=global_env
+        for layer=1,6 do
+            local marker=wire_bit(seed,0x9C0+layer,layer%2==0)
+            local backing={__kernel_marker=marker,__stack_local=marker,__power_bits=1024,__power_symbol=power1024_symbol,__branch_layer=layer}
+            local kernel_mt={__mode='kv'}
+            kernel_mt.__index=base
+            kernel_mt.__newindex=function(_,key,value) rawset0(backing,key,value) end
+            local kernel=setmetatable0(backing,kernel_mt)
+            kernel_layers[layer]=kernel
+            kernel_hold[layer]=kernel
+            base=kernel
+        end
+        local kernel_probe
+        kernel_probe=function()
+            local active=getfenv0(kernel_probe)
+            local meta=getmetatable0(active)
+            return type0(active)=='table' and rawget0(active,'__kernel_marker') or nil, type0(active)=='table' and rawget0(active,'__power_bits') or nil, meta
+        end
+        local kernel_original=getfenv0(kernel_probe)
+        local kernel_target=kernel_layers[6]
+        local kernel_set_ok=pcall0(setfenv0,kernel_probe,kernel_target)
+        local kernel_call_ok,kernel_marker,kernel_bits,kernel_meta=pcall0(kernel_probe)
+        local kernel_restore_ok=pcall0(setfenv0,kernel_probe,kernel_original)
+        local kernel_restored_ok,kernel_restored=pcall0(getfenv0,kernel_probe)
+        local kernel_meta_ok=type0(kernel_meta)=='table' and rawget0(kernel_meta,'__mode')=='kv'
+        local kernel_valid=kernel_set_ok and kernel_call_ok and kernel_marker==rawget0(kernel_target,'__kernel_marker') and kernel_bits==1024 and kernel_meta_ok and kernel_restore_ok and kernel_restored_ok and rawequal0(kernel_restored,kernel_original)
+        if not kernel_valid then return false,0 end
+
+        local negative_depth=-1
+        local hop_value=kernel_marker
+        local hop_hash=u32(bxor(kernel_marker,0x9D0))
+        for hop=1,20 do
+            local level=(hop-1)%4
+            local env_ok,active_env=pcall0(getfenv0,level)
+            local meta_ok,active_meta=pcall0(getmetatable0,active_env)
+            local env_marker=env_ok and type0(active_env)=='table' and rawget0(active_env,'__stack_local') or nil
+            local env_link=type0(env_marker)=='number' and u32(env_marker) or wire_type_code(type0(env_marker))
+            local meta_link=meta_ok and type0(active_meta)=='table' and wire_type_code(type0(rawget0(active_meta,'__mode'))) or 0xA4
+            negative_depth=-(abs0(negative_depth)+hop+1)
+            hop_value=u32(bxor(hop_value,env_link,meta_link,wire_bit(hop,0x9E0+hop,hop%2==0)))
+            hop_hash=u32(bxor(hop_hash,hop_value,negative_depth))
+        end
+
+        local buffer_probe
+        buffer_probe=function()
+            local active=getfenv0(buffer_probe)
+            local scoped=type0(active)=='table' and rawget0(active,'buffer') or nil
+            return scoped or buffer0
+        end
+        local buffer_original=getfenv0(buffer_probe)
+        local buffer_set_ok=pcall0(setfenv0,buffer_probe,global_env)
+        local buffer_call_ok,scoped_buffer=pcall0(buffer_probe)
+        local buffer_restore_ok=pcall0(setfenv0,buffer_probe,buffer_original)
+        local buffer_restored_ok,buffer_restored=pcall0(getfenv0,buffer_probe)
+        local buffer_valid=buffer_set_ok and buffer_call_ok and type0(scoped_buffer)=='table' and buffer_restore_ok and buffer_restored_ok and rawequal0(buffer_restored,buffer_original)
+        if not buffer_valid then return false,0 end
+
+        local type_trace_link=0
+        local negative_type=-1
+        local type_all_ok=true
+        local function trace_type(value,slot)
+            local type_call_ok,type_name=xpcall0(function() return type0(value) end,function(err) return err end)
+            local typeof_call_ok,typeof_name=xpcall0(function() return typeof0(value) end,function(err) return err end)
+            negative_type=-(abs0(negative_type)+slot+1)
+            local kind_link=type_call_ok and wire_bit(type_name,0xA00+slot,true) or wire_bit(0,0xA00+slot,false)
+            local runtime_link=typeof_call_ok and wire_bit(typeof_name,0xA10+slot,false) or wire_bit(0,0xA10+slot,true)
+            type_trace_link=u32(bxor(type_trace_link,kind_link,runtime_link,wire_bit(negative_type,0xA20+slot,slot%2==0)))
+            if not type_call_ok or not typeof_call_ok or type0(type_name)~='string' or type0(typeof_name)~='string' then type_all_ok=false end
+        end
+        local function_value=function() return seed end
+        local table_value={__local_seed=seed}
+        trace_type(nil,1)
+        trace_type(false,2)
+        trace_type(seed,3)
+        trace_type('',4)
+        trace_type(function_value,5)
+        trace_type(table_value,6)
+        local type_valid=type_all_ok and type0(negative_type)=='number' and negative_type<0
+        if not type_valid then return false,0 end
+
+        local final_global=rawget0(_G,'_G')
+        if type0(final_global)~='table' then final_global=_G end
+        local final_genv=final_global
+        if type0(getgenv0)=='function' then
+            local genv_ok,genv_value=pcall0(getgenv0)
+            if genv_ok and type0(genv_value)=='table' then final_genv=genv_value end
+        end
+        local final_back=rawget0(final_genv,'_G')
+        if type0(final_back)~='table' then final_back=final_genv end
+        local final_global_link=wire_bit(type0(final_global),0xA30,true)
+        final_global_link=u32(bxor(final_global_link,wire_bit(type0(final_genv),0xA31,false),wire_bit(type0(final_back),0xA32,true),hop_hash))
+        local exponent_link=wire_bit(256,0xA33, power256==2^256)
+        local final_link=u32(bxor(final_global_link,exponent_link,type_trace_link,wire_bit(negative_depth,0xA34,true),wire_bit(type0(scoped_buffer),0xA35,false)))
+        local global_valid=type0(final_global)=='table' and type0(final_genv)=='table' and type0(final_back)=='table' and power256==2^256 and negative_depth<0
+        return rawset_inner_ok and parallel_meta_ok and kernel_valid and buffer_valid and type_valid and global_valid,final_link
+    end)
+    if not run_ok then return false,0 end
+    return valid==true,signature
+end
+
+local function top_level_mod_probe(seed)
+    local run_ok,valid,signature=pcall0(function()
+        local top_ok,top_env=pcall0(getfenv0,0)
+        if not top_ok or type0(top_env)~='table' then top_env=_G end
+        local nodes={}
+        local keepers={}
+        local top_mt={}
+        local top_probe
+        top_probe=function()
+            local active=getfenv0(top_probe)
+            return active
+        end
+        local top_original=getfenv0(top_probe)
+        local function top_index(self,key)
+            if key=='value' then return rawget0(self,'__value') end
+            if key=='depth' then return rawget0(self,'__depth') end
+            if key=='inner' then return rawget0(self,'__inner') end
+            if key=='parent' then return rawget0(self,'__parent') end
+            if key=='key' then return rawget0(self,'__key') end
+            if key=='powerBits' then return rawget0(self,'__power_bits') end
+            return rawget0(top_env,key)
+        end
+        top_mt.__index=top_index
+        top_mt.__mode='kv'
+        top_mt.__mod=function(self,divisor)
+            local depth=rawget0(self,'__depth') or 0
+            local current=rawget0(self,'__value')
+            local divisor_value=type0(divisor)=='number' and divisor or 1
+            if divisor_value==0 then divisor_value=1 end
+            local e0_ok,e0=pcall0(getfenv0,0)
+            local e1_ok,e1=pcall0(getfenv0,1)
+            local e3_ok,e3=pcall0(getfenv0,3)
+            local m0_ok,m0=pcall0(getmetatable0,e0)
+            local m1_ok,m1=pcall0(getmetatable0,e1)
+            local env_link=wire_bit(e0_ok and type0(e0) or 'nil',0xA50+depth,true)
+            env_link=bxor(env_link,wire_bit(e1_ok and type0(e1) or 'nil',0xA51+depth,false),wire_bit(e3_ok and type0(e3) or 'nil',0xA52+depth,true))
+            local meta_link=wire_bit(m0_ok and type0(m0) or 'nil',0xA53+depth,false)
+            meta_link=bxor(meta_link,wire_bit(m1_ok and type0(m1) or 'nil',0xA54+depth,true))
+            local next_node=rawget0(self,'__inner')
+            local target_env=type0(next_node)=='table' and next_node or top_env
+            local before_ok,before=pcall0(getfenv0,top_probe)
+            local restore_env=before_ok and type0(before)=='table' and before or top_original
+            local set_ok=pcall0(setfenv0,top_probe,target_env)
+            local active_ok,active=pcall0(top_probe)
+            local restore_ok=pcall0(setfenv0,top_probe,restore_env)
+            local value_link=wire_bit(type0(active),0xA55+depth,set_ok and active_ok)
+            local next_value=u32(bxor(u32(current),env_link,meta_link,value_link,wire_bit(divisor_value,0xA56+depth,true)))
+            rawset0(self,rawget0(self,'__key'),next_value)
+            rawset0(self,'__raw_env_'..depth,env_link)
+            rawset0(self,'__raw_meta_'..depth,meta_link)
+            rawset0(self,'__setfenv_ok',set_ok and restore_ok and active_ok)
+            if type0(next_node)=='table' then
+                rawset0(next_node,'__from_mod',next_value)
+                rawset0(next_node,'__setfenv_ok',set_ok and restore_ok and active_ok)
+                return next_node
+            end
+            rawset0(self,'__top_low',u32(bxor(next_value,wire_bit(depth,0xA57,true))))
+            return self
+        end
+        top_mt.__pow=function(self,exponent)
+            local exponent_value=type0(exponent)=='number' and exponent or 1024
+            local power_symbol=power_signed(2,1023)
+            local limbs={}
+            local limb_state=u32(rawget0(self,'__value'))
+            for slot=1,32 do
+                local power_lo,power_hi=power64(2,slot+1)
+                local limb_link=wire_bit(slot,0xA60+slot,slot%2==0)
+                limbs[slot]=u32(bxor(limb_state,power_lo,power_hi,limb_link))
+                limb_state=u32(bxor(limb_state,limbs[slot],slot*0x7F4A))
+            end
+            rawset0(self,'__power_bits',1024)
+            rawset0(self,'__power_exponent',exponent_value)
+            rawset0(self,'__power_symbol',power_symbol)
+            rawset0(self,'__power_overflow',math.huge)
+            rawset0(self,'__power_limbs',limbs)
+            local cursor=self
+            for slot=1,20 do
+                if type0(cursor)~='table' then break end
+                rawset0(cursor,'__pow_key'..slot,wire_bit(slot,0xA80+slot,true))
+                local next_node=rawget0(cursor,'__inner')
+                if type0(next_node)~='table' then break end
+                rawset0(next_node,'__power_bits',1024)
+                cursor=next_node
+            end
+            rawset0(self,'__top_low',u32(bxor(limb_state,wire_bit(1024,0xA9F,true))))
+            return self
+        end
+        top_mt.__eq=function(self,other)
+            local left=rawget0(self,'__value')
+            local right=type0(other)=='table' and rawget0(other,'__value') or 0
+            local link=wire_bit(type0(left)=='number' and left or 0,0xAA0,true)
+            link=bxor(link,wire_bit(type0(right)=='number' and right or 0,0xAA1,false))
+            local parent=rawget0(self,'__parent')
+            local other_parent=type0(other)=='table' and rawget0(other,'__parent') or nil
+            return rawequal0(link,link) and (type0(parent)=='table' or type0(other_parent)=='table')
+        end
+
+        local function make_top_node(value,depth,parent)
+            local node={}
+            rawset0(node,'__value',value)
+            rawset0(node,'__depth',depth)
+            rawset0(node,'__key','['..depth..']')
+            rawset0(node,'['..depth..']',wire_bit(value,0xAB0+depth,true))
+            rawset0(node,'__state',wire_bit(value,0xAC0+depth,false))
+            if type0(parent)=='table' then rawset0(node,'__parent',parent) end
+            keepers[#keepers+1]=node
+            return setmeta_proxy(node,top_mt)
+        end
+
+        local root=make_top_node(seed,0,nil)
+        nodes[1]=root
+        local cursor=root
+        for depth=1,20 do
+            local next_value=u32(bxor(rawget0(cursor,'__value'),wire_bit(depth,0xAD0+depth,depth%2==0)))
+            local next_node=make_top_node(next_value,depth,cursor)
+            rawset0(cursor,'__inner',next_node)
+            rawset0(cursor,'__angle',wire_bit(depth,0xAE0+depth,depth%2~=0))
+            nodes[depth+1]=next_node
+            cursor=next_node
+        end
+        local terminal=cursor
+        local powered=root^1024
+        local power_valid=rawequal0(powered,root) and rawget0(root,'__power_bits')==1024 and rawget0(root,'__power_exponent')==1024 and type0(rawget0(root,'__power_symbol'))=='number' and type0(rawget0(root,'__power_limbs'))=='table' and #rawget0(root,'__power_limbs')==32
+        if not power_valid then return false,0 end
+
+        local walk=root
+        local mod_valid=true
+        for depth=1,20 do
+            walk=walk%1
+            if type0(walk)~='table' or walk.depth~=depth or rawget0(walk,'__setfenv_ok')~=true then mod_valid=false break end
+            local key=rawget0(walk,'__key')
+            if type0(key)~='string' or type0(rawget0(walk,key))~='number' then mod_valid=false break end
+        end
+        local back=walk
+        local back_count=0
+        while type0(back)=='table' and back_count<20 do
+            local parent=rawget0(back,'__parent')
+            rawset0(back,'__back_link',wire_bit(back.depth,0xAF0+back_count,true))
+            back=parent
+            back_count=back_count+1
+        end
+        local returned_top=rawequal0(back,root)
+        local top_low=rawget0(root,'__top_low')
+        local top_valid=type0(top_low)=='number' or type0(rawget0(terminal,'__top_low'))=='number'
+        local final_global=rawget0(_G,'_G')
+        if type0(final_global)~='table' then final_global=_G end
+        local final_back=rawget0(final_global,'_G')
+        if type0(final_back)~='table' then final_back=final_global end
+        local global_link=wire_bit(type0(final_global),0xB00,true)
+        global_link=bxor(global_link,wire_bit(type0(final_back),0xB01,false),wire_bit(type0(top_env),0xB02,true))
+        local result_link=u32(bxor(global_link,wire_bit(256,0xB03,true),wire_bit(1024,0xB04,false),wire_bit(back_count,0xB05,true)))
+        return mod_valid and returned_top and top_valid and back_count==20 and type0(result_link)=='number',result_link
+    end)
+    if not run_ok then return false,0 end
+    return valid==true,signature
+end
+
+local function pcall_lane_probe(seed)
+    local run_ok,valid,signature=pcall0(function()
+        local pcall_fn=pcall0
+        local pcall_power15=power_signed(2,15)-1
+        local pcall15=band(wire_bit(pcall_fn,0xB10,true),0x7FFF)
+        local pcall_probe_ok,pcall_probe_value=pcall0(function() return 0x15 end)
+        local pcall_equation=band(bxor(pcall15,wire_bit(pcall_probe_ok,0xB11,false),wire_bit(pcall_probe_value,0xB12,true)),0x7FFF)
+        local type_again_ok,type_again=xpcall0(function() return type0(pcall_fn) end,function(err) return err end)
+        local typeof_again_ok,typeof_again=pcall0(typeof0,pcall_fn)
+        local pcall_type_valid=type_again_ok and typeof_again_ok and type_again=='function' and typeof_again=='function' and pcall_power15==0x7FFF
+
+        local global_env=rawget0(_G,'_G')
+        if type0(global_env)~='table' then global_env=_G end
+        local lane_names={'kernel','mode','lane'}
+        local lane_nodes={}
+        local lane_path={}
+        local lane_hold={}
+        local lane_state=u32(bxor(seed,pcall_equation,wire_bit(type_again,0xB13,true)))
+        local lane_setter_mt={}
+        local lane_setter=setmetatable0({__state=wire_bit(0,0xB14,true),__global=global_env},lane_setter_mt)
+        local lane_mt_index=function(self,key)
+            if key=='value' then return rawget0(self,'__value') end
+            if key=='depth' then return rawget0(self,'__depth') end
+            if key=='lane' then return rawget0(self,'__lane') end
+            if key=='inner' then return rawget0(self,'__inner') end
+            if key=='global' then return rawget0(self,'__global') end
+            return nil
+        end
+        local lane_mt_call=function(self)
+            local child=rawget0(self,'__inner')
+            if type0(child)=='table' then return child end
+            return self
+        end
+        local lane_mt_eq=function(self,other)
+            local left=rawget0(self,'__value')
+            local right=type0(other)=='table' and rawget0(other,'__value') or 0
+            local link=wire_bit(type0(left)=='number' and left or 0,0xB15,true)
+            link=bxor(link,wire_bit(type0(right)=='number' and right or 0,0xB16,false))
+            local parent=rawget0(self,'__inner')
+            local other_parent=type0(other)=='table' and rawget0(other,'__inner') or nil
+            return rawequal0(link,link) and (type0(parent)=='table' or type0(other_parent)=='table')
+        end
+        local lane_mt_newindex=function(_,key,value)
+            local backing=rawget0(_, '__backing')
+            if type0(backing)=='table' then rawset0(backing,key,value) end
+        end
+        lane_setter_mt.__call=function(self,node,mt)
+            rawset0(node,'__metatable_proxy',self)
+            rawset0(node,'__global',global_env)
+            return setmeta_proxy(node,mt)
+        end
+
+        local function make_lane_node(value,depth,lane_name,parent,formula)
+            local backing={}
+            rawset0(backing,'__lane_name',lane_name)
+            rawset0(backing,'__lane',lane_name)
+            rawset0(backing,'__lane_marker',formula)
+            rawset0(backing,'__stack_local',formula)
+            rawset0(backing,'__value',value)
+            rawset0(backing,'__depth',depth)
+            rawset0(backing,'__inner',parent)
+            rawset0(backing,'__global',global_env)
+            rawset0(backing,'__backing',backing)
+            local mt={__index=lane_mt_index,__call=lane_mt_call,__eq=lane_mt_eq,__newindex=lane_mt_newindex,__mode='kv'}
+            local node=lane_setter(backing,mt)
+            lane_hold[#lane_hold+1]=backing
+            return node
+        end
+
+        local previous=global_env
+        for step=1,12 do
+            local lane_index=1+(lane_state%3)
+            local lane_name=lane_names[lane_index]
+            local route_link=wire_bit(step,0xB20+step,step%2==0)
+            lane_state=u32(bxor(lane_state,route_link,step*0x45D9,pcall_equation))
+            local marker=wire_bit(u32(bxor(seed,lane_state,step)),0xB40+step,lane_index%2==0)
+            local node=make_lane_node(u32(bxor(seed,lane_state,marker)),step,lane_name,previous,marker)
+            lane_nodes[step]=node
+            lane_path[step]=lane_index
+            previous=node
+        end
+        local chosen=lane_nodes[12]
+        local chosen_marker=rawget0(chosen,'__lane_marker')
+        local lane_probe
+        lane_probe=function()
+            local active=getfenv0(lane_probe)
+            if type0(active)~='table' then return nil,nil end
+            return rawget0(active,'__lane_marker'),rawget0(active,'__global')
+        end
+        local original=getfenv0(lane_probe)
+        local chosen_meta_ok,chosen_meta=pcall0(getmetatable0,chosen)
+        local set_ok=pcall0(setfenv0,lane_probe,chosen)
+        local trace_ok,trace_marker,trace_env,trace_pcall_type=xpcall0(function()
+            local active=getfenv0(lane_probe)
+            local nested_pcall_ok,nested_type=pcall0(function() return type0(pcall_fn) end)
+            return rawget0(active,'__lane_marker'),active,nested_pcall_ok and nested_type or 'nil'
+        end,function(err)
+            return nil,nil,'error'
+        end)
+        local call_ok,call_marker,call_global=pcall0(lane_probe)
+        local chosen_value=chosen.value
+        local chosen_depth=chosen.depth
+        local chosen_lane=chosen.lane
+        local chosen_inner=chosen.inner
+        local chosen_public_global=chosen.global
+        local lane_call_child=chosen()
+        local lane_eq_ok=chosen==lane_nodes[11]
+        chosen.__lane_trace=wire_bit(chosen_marker,0xB17,true)
+        local lane_write=rawget0(chosen,'__lane_trace')
+        local restore_ok=pcall0(setfenv0,lane_probe,original)
+        local restored_ok,restored_env=pcall0(getfenv0,lane_probe)
+        local lane_handlers_valid=type0(chosen_value)=='number' and chosen_depth==12 and type0(chosen_lane)=='string' and type0(chosen_inner)=='table' and rawequal0(chosen_public_global,global_env) and type0(lane_call_child)=='table' and lane_eq_ok and lane_write==wire_bit(chosen_marker,0xB17,true)
+        local set_trace_valid=set_ok and trace_ok and call_ok and trace_marker==chosen_marker and call_marker==chosen_marker and trace_pcall_type=='function' and type0(trace_env)=='table' and rawequal0(call_global,global_env) and restore_ok and restored_ok and rawequal0(restored_env,original) and chosen_meta_ok and type0(chosen_meta)=='table' and lane_handlers_valid
+        if not set_trace_valid then return false,0 end
+
+        local negative_state=-1
+        local hop_hash=u32(bxor(chosen_marker,0xB60))
+        for hop=1,20 do
+            local index=1+(abs0(negative_state)%12)
+            local hop_node=lane_nodes[index]
+            local hop_env_ok,hop_env=pcall0(getfenv0,hop%4)
+            local hop_meta_ok,hop_meta=pcall0(getmetatable0,hop_node)
+            local hop_marker=rawget0(hop_node,'__lane_marker')
+            local hop_link=wire_bit(hop_marker,0xB70+hop,hop%2==0)
+            local env_link=hop_env_ok and wire_bit(type0(hop_env),0xB90+hop,true) or wire_bit(0,0xB90+hop,false)
+            local meta_link=hop_meta_ok and wire_bit(type0(hop_meta),0xBA0+hop,false) or wire_bit(0,0xBA0+hop,true)
+            negative_state=-(abs0(negative_state)+hop+1)
+            hop_hash=u32(bxor(hop_hash,hop_link,env_link,meta_link,wire_bit(negative_state,0xBC0+hop,true)))
+        end
+        local negative_index=1+(abs0(negative_state)%12)
+        local negative_target=lane_nodes[negative_index]
+        local negative_set_ok=pcall0(setfenv0,lane_probe,negative_target)
+        local negative_get_ok,negative_env=pcall0(getfenv0,lane_probe)
+        local negative_marker=type0(negative_env)=='table' and rawget0(negative_env,'__lane_marker') or nil
+        local negative_restore_ok=pcall0(setfenv0,lane_probe,original)
+        local negative_valid=negative_set_ok and negative_get_ok and negative_restore_ok and negative_marker==rawget0(negative_target,'__lane_marker') and negative_state<0
+
+        local global_from_lane=rawget0(chosen,'__global')
+        local final_global=rawget0(_G,'_G')
+        if type0(final_global)~='table' then final_global=_G end
+        local final_back=rawget0(final_global,'_G')
+        if type0(final_back)~='table' then final_back=final_global end
+        local final_link=wire_bit(type0(global_from_lane),0xBD0,true)
+        final_link=u32(bxor(final_link,wire_bit(type0(final_global),0xBD1,false),wire_bit(type0(final_back),0xBD2,true),pcall_equation,hop_hash,wire_bit(negative_state,0xBD3,false)))
+        local path_valid=#lane_nodes==12 and #lane_path==12 and type0(lane_path[1])=='number' and type0(lane_path[12])=='number'
+        local global_valid=type0(global_from_lane)=='table' and type0(final_global)=='table' and type0(final_back)=='table'
+        return pcall_type_valid and set_trace_valid and negative_valid and path_valid and global_valid and type0(final_link)=='number',final_link
+    end)
+    if not run_ok then return false,0 end
+    return valid==true,signature
+end
+
+local function metamethod_env_probe(seed)
+    local run_ok,valid,signature=pcall0(function()
+        local top_ok,top_env=pcall0(getfenv0,0)
+        if not top_ok or type0(top_env)~='table' then top_env=_G end
+
+        local env_storage={__global=_G}
+        local env_newindex=function(_,key,value)
+            rawset0(env_storage,key,value)
+        end
+        local env0_mt={__index=top_env,__newindex=env_newindex}
+        local env0=setmetatable0({__marker=wire_bit(seed,0xBE0,true)},env0_mt)
+        local env1=setmetatable0({__marker=wire_bit(seed,0xBE1,false),__parent=env0},{__index=env0,__newindex=env_newindex})
+        local env2=setmetatable0({__marker=wire_bit(seed,0xBE2,true),__parent=env1},{__index=env1,__newindex=env_newindex})
+        env2.route_write=wire_bit(seed,0xBE3,false)
+        local env_write=rawget0(env_storage,'route_write')
+
+        local router_layer={}
+        local router_mt={}
+        local router_call=function(_,fn,env)
+            return pcall0(setfenv0,fn,env)
+        end
+        router_mt.__call=router_call
+        router_mt.__index=router_layer
+        router_layer.__index=router_mt
+        setmetatable0(router_mt,router_layer)
+        local setfenv_proxy=setmetatable0({__target=setfenv0},router_mt)
+
+        local bound={}
+        local function bind_env(fn,env)
+            if type0(fn)~='function' then return false end
+            local old_ok,old_env=pcall0(getfenv0,fn)
+            local set_ok=setfenv_proxy(fn,env)
+            if not old_ok or type0(old_env)~='table' or not set_ok then return false end
+            bound[#bound+1]={fn=fn,env=old_env}
+            return true
+        end
+
+        local nil_index=rawget0(nil_rescue_mt,'__index')
+        local nil_call=rawget0(nil_rescue_mt,'__call')
+        local nil_pow=rawget0(nil_rescue_mt,'__pow')
+        local nil_eq=rawget0(nil_rescue_mt,'__eq')
+        local probe_mt={}
+        local probe_storage={}
+        local probe_index=function(self,key)
+            if key=='value' then return rawget0(self,'__value') end
+            if key=='depth' then return rawget0(self,'__depth') end
+            return rawget0(probe_storage,key)
+        end
+        local probe_newindex=function(self,key,value)
+            rawset0(probe_storage,key,value)
+            rawset0(self,'__last_key',key)
+        end
+        local probe_call=function(self,step)
+            local value=rawget0(self,'__value')
+            local depth=rawget0(self,'__depth') or 0
+            local child={__value=u32(bxor(value,wire_bit(step,0xBE4+depth,true))),__depth=depth+1}
+            return setmetatable0(child,probe_mt)
+        end
+        local probe_eq=function(left,right)
+            return rawget0(left,'__value')==rawget0(right,'__value')
+        end
+        local probe_mod=function(left,right)
+            local left_value=rawget0(left,'__value')
+            local right_value=type0(right)=='table' and rawget0(right,'__value') or right
+            return setmetatable0({__value=u32((left_value%(abs0(right_value)+1))+wire_bit(right_value,0xBE5,false)),__depth=(rawget0(left,'__depth') or 0)+1},probe_mt)
+        end
+        probe_mt.__index=probe_index
+        probe_mt.__newindex=probe_newindex
+        probe_mt.__call=probe_call
+        probe_mt.__eq=probe_eq
+        probe_mt.__mod=probe_mod
+
+        local rawget1=function(tbl,key)
+            return rawget0(tbl,key)
+        end
+        local rawget2=function(tbl,key)
+            return rawget1(tbl,key)
+        end
+        local x_handler=function(err)
+            return err
+        end
+        local x_layers={}
+        local x_base=function(value)
+            return value
+        end
+        local x_next=x_base
+        for depth=1,10 do
+            local inner=x_next
+            local layer=function(value)
+                local ok,result=xpcall0(function() return inner(value) end,x_handler)
+                if not ok then return nil end
+                return result
+            end
+            x_layers[depth]=layer
+            x_next=layer
+        end
+        local trace_fn=function(value)
+            local result=x_next(value)
+            local env3_ok,env3=pcall0(getfenv0,3)
+            local env0_ok,env_at_zero=pcall0(getfenv0,0)
+            local raw0_value=rawget0(env2,'__marker')
+            local raw1_value=rawget1(env2,'__marker')
+            local raw2_value=rawget2(env2,'__marker')
+            return result,env3,env_at_zero,env3_ok,env0_ok,raw0_value,raw1_value,raw2_value
+        end
+
+        local bind_ok=bind_env(router_call,env2) and bind_env(env_newindex,env2)
+        bind_ok=bind_ok and bind_env(nil_index,env2) and bind_env(nil_call,env2) and bind_env(nil_pow,env2) and bind_env(nil_eq,env2)
+        bind_ok=bind_ok and bind_env(probe_index,env2) and bind_env(probe_newindex,env2) and bind_env(probe_call,env2) and bind_env(probe_eq,env2) and bind_env(probe_mod,env2)
+        bind_ok=bind_ok and bind_env(rawget1,env1) and bind_env(rawget2,env0) and bind_env(x_handler,env2) and bind_env(x_base,env0)
+        for depth=1,10 do
+            bind_ok=bind_ok and bind_env(x_layers[depth],depth%3==0 and env0 or depth%3==1 and env1 or env2)
+        end
+        bind_ok=bind_ok and bind_env(trace_fn,env2)
+        if not bind_ok then return false,0 end
+
+        local nil_left=make_nil_rescue(seed,0,nil)
+        local nil_right=make_nil_rescue(seed,1,nil_left)
+        local nil_value=nil_left.value
+        local nil_called=nil_left(3)
+        local nil_power=nil_left^32
+        local nil_equal=nil_left==nil_right
+
+        local probe_left=setmetatable0({__value=seed,__depth=0},probe_mt)
+        local probe_right=setmetatable0({__value=seed,__depth=1},probe_mt)
+        local probe_value=probe_left.value
+        local probe_child=probe_left(7)
+        local probe_equal=probe_left==probe_right
+        local probe_modulo=probe_left%probe_right
+        probe_left.route_write=wire_bit(seed,0xBE6,true)
+        local probe_write=rawget0(probe_storage,'route_write')
+
+        local trace_ok,trace_result,trace_env3,trace_env0,trace_env3_ok,trace_env0_ok,raw0_value,raw1_value,raw2_value=pcall0(trace_fn,seed)
+        local trace_function_env_ok,trace_function_env=pcall0(getfenv0,trace_fn)
+        local trace_valid=trace_ok and trace_result==seed and trace_env3_ok and trace_env0_ok and trace_function_env_ok and type0(trace_env3)=='table' and type0(trace_env0)=='table' and rawequal0(trace_function_env,env2) and raw0_value==raw1_value and raw1_value==raw2_value and raw0_value==rawget0(env2,'__marker')
+        local router_meta_ok=type0(getmetatable0(setfenv_proxy))=='table' and type0(getmetatable0(router_mt))=='table'
+
+        local restore_ok=true
+        for index=#bound,1,-1 do
+            local entry=bound[index]
+            local restored=pcall0(setfenv0,entry.fn,entry.env)
+            if not restored then restore_ok=false end
+        end
+        local restored_envs=true
+        for index=1,#bound do
+            local entry=bound[index]
+            local check_ok,current=pcall0(getfenv0,entry.fn)
+            if not check_ok or not rawequal0(current,entry.env) then restored_envs=false end
+        end
+
+        local metamethod_valid=type0(nil_value)=='number' and type0(nil_called)=='table' and type0(nil_power)=='table' and nil_equal and type0(probe_value)=='number' and type0(probe_child)=='table' and probe_equal and type0(probe_modulo)=='table' and probe_write==wire_bit(seed,0xBE6,true) and env_write==wire_bit(seed,0xBE3,false)
+        local depth_valid=#x_layers==10 and #bound>=22 and raw0_value==raw1_value and raw1_value==raw2_value
+        local final_link=u32(bxor(wire_bit(nil_value,0xBE7,true),wire_bit(probe_modulo.__value,0xBE8,false),wire_bit(trace_result,0xBE9,true),wire_bit(#bound,0xBEA,false),wire_bit(raw0_value,0xBEB,true)))
+        return metamethod_valid and trace_valid and router_meta_ok and restore_ok and restored_envs and depth_valid and type0(final_link)=='number',final_link
+    end)
+    if not run_ok then return false,0 end
+    return valid==true,signature
+end
+
+local function coupled_reentry_probe(seed,check_fn,depth)
+    local run_ok,valid,signature=pcall0(function()
+        local original_ok,original_env=pcall0(getfenv0,check_fn)
+        if not original_ok or type0(original_env)~='table' then return false,0 end
+        local reentry_backing={__seed=seed,__depth=depth}
+        local reentry_env=setmetatable0({__wire=wire_bit(seed,0xD00,true),__coupled=check_fn},{__index=original_env})
+        local reentry_mt={}
+        local mod_fn=function(left,right)
+            local left_value=rawget0(left,'__value')
+            local right_value=type0(right)=='table' and rawget0(right,'__value') or right
+            local link=wire_bit(left_value,0xD01,true)
+            link=bxor(link,wire_bit(right_value,0xD02,false))
+            local value=u32(bxor(left_value,right_value,link,wire_bit(reentry_env.__wire,0xD03,true)))
+            rawset0(reentry_backing,'__mod_link',link)
+            return setmetatable0({__value=value,__depth=(rawget0(left,'__depth') or 0)+1},reentry_mt)
+        end
+        local eq_fn=function(left,right)
+            local left_value=rawget0(left,'__value')
+            local right_value=type0(right)=='table' and rawget0(right,'__value') or right
+            local link=wire_bit(left_value,0xD04,false)
+            link=bxor(link,wire_bit(right_value,0xD05,true))
+            rawset0(reentry_backing,'__eq_link',link)
+            return rawequal0(left_value,right_value) or link==link
+        end
+        local call_fn=function(self,feed)
+            local nested_ok,nested_value=pcall0(check_fn,u32(bxor(seed,wire_bit(feed,0xD06,true))), (depth or 0)+1)
+            local child={__value=type0(nested_value)=='number' and nested_value or 0,__depth=(rawget0(self,'__depth') or 0)+1}
+            rawset0(child,'__call_ok',nested_ok and type0(nested_value)=='number')
+            rawset0(child,'__call_link',wire_bit(type0(nested_value),0xD07,false))
+            return setmetatable0(child,reentry_mt)
+        end
+        reentry_mt.__mod=mod_fn
+        reentry_mt.__eq=eq_fn
+        reentry_mt.__call=call_fn
+        local bound={}
+        local function bind(fn)
+            local old_ok,old_env=pcall0(getfenv0,fn)
+            local set_ok=pcall0(setfenv0,fn,reentry_env)
+            if not old_ok or type0(old_env)~='table' or not set_ok then return false end
+            bound[#bound+1]={fn=fn,env=old_env}
+            return true
+        end
+        local bind_ok=bind(mod_fn) and bind(eq_fn) and bind(call_fn)
+        local check_set_ok=pcall0(setfenv0,check_fn,reentry_env)
+        if not bind_ok or not check_set_ok then return false,0 end
+
+        local left=setmetatable0({__value=wire_bit(seed,0xD08,true),__depth=0},reentry_mt)
+        local right=setmetatable0({__value=wire_bit(seed,0xD09,false),__depth=0},reentry_mt)
+        local mod_value=left%right
+        local eq_value=left==right
+        local call_value=left(wire_bit(seed,0xD0A,true))
+        local mod_link=rawget0(reentry_backing,'__mod_link')
+        local eq_link=rawget0(reentry_backing,'__eq_link')
+        local call_ok=type0(call_value)=='table' and rawget0(call_value,'__call_ok')==true
+
+        local restore_ok=pcall0(setfenv0,check_fn,original_env)
+        for index=#bound,1,-1 do
+            local entry=bound[index]
+            if not pcall0(setfenv0,entry.fn,entry.env) then restore_ok=false end
+        end
+        local restored_ok,restored_env=pcall0(getfenv0,check_fn)
+        local env_restored=restored_ok and rawequal0(restored_env,original_env)
+        local valid_state=type0(mod_value)=='table' and type0(eq_value)=='boolean' and call_ok and type0(mod_link)=='number' and type0(eq_link)=='number' and env_restored and depth==0
+        local link=u32(bxor(wire_bit(mod_value.__value,0xD0B,true),wire_bit(eq_value,0xD0C,false),wire_bit(call_value.__value,0xD0D,true),u32(mod_link),u32(eq_link),wire_bit(env_restored,0xD0E,false)))
+        return valid_state and type0(link)=='number',link
+    end)
+    if not run_ok then return false,0 end
+    return valid==true,signature
+end
+
+local function coupled_check(seed,reentry_depth)
+    local reentry_level=type0(reentry_depth)=='number' and reentry_depth or 0
+    local type_ok,type_value=pcall0(function() return type0(seed) end)
+    if not type_ok or type_value~='number' or type0(typeof0)~='function' then return nil end
+    if typeof0(seed)~='number' then return nil end
+    if env_proxy.pcall~=wire_bit(true,0x301,true) or env_proxy.meta~=wire_bit(true,0x302,true) then return nil end
+
+    local mesh_seed=u32(bxor(seed,wire_bit(seed,0xC00,true)))
+    local mesh_hash=u32(bxor(mesh_seed,env_key,0xC01))
+    local mesh_count=0
+    local mesh_links={}
+    local function mesh_edge(label,edge_ok,link,slot)
+        if not edge_ok or type0(link)~='number' then return false end
+        mesh_count=mesh_count+1
+        local label_link=wire_bit(label,0xC10+slot,slot%2==0)
+        local edge_link=u32(bxor(u32(link),label_link,wire_bit(mesh_count,0xC30+slot,true)))
+        mesh_links[mesh_count]=edge_link
+        mesh_hash=u32(bxor(mesh_hash,edge_link,wire_bit(mesh_seed,0xC50+slot,false)))
+        mesh_seed=u32(bxor(mesh_seed,edge_link,mesh_hash,wire_bit(slot,0xC70+slot,true)))
+        return true
+    end
+
+    local scg_root,scg_peer=scg_pair(mesh_seed,wire_bit(mesh_seed,0x511,true),0)
+    local scg_eq=scg_root==scg_peer
+    local scg_jump=scg_root(0x521)
+    local scg_power=scg_jump^(-200)
+    local scg_div=scg_power/7
+    local scg_valid=scg_eq and type0(scg_power)=='table' and typeof0(scg_power)=='table' and scg_power.depth==2 and type0(scg_power.peerValue)=='number' and scg_power.peerValue~=scg_power.value and type0(scg_peer.peerValue)=='number' and type0(scg_div)=='table' and scg_div.depth==3 and type0(rawget0(scg_power,'__neg_power'))=='number' and rawget0(scg_power,'__power_exp')==-200 and type0(rawget0(scg_div,'__quotient'))=='number' and type0(rawget0(scg_root,'__meta20'))=='number' and rawget0(scg_root,'__meta20')<1048576
+    if not scg_valid then return nil end
+    local scg_link=bxor(wire_bit(scg_power.value,0xC02,true),wire_bit(scg_div.value,0xC03,false),wire_bit(scg_peer.peerValue,0xC04,true))
+    if not mesh_edge('scg',scg_valid,scg_link,1) then return nil end
+
+    local zero_ok,zero_value=pcall0(function() return 0/0 end)
+    local neg_zero_ok,neg_zero_value=xpcall0(function() return -1/0 end,function(value) return value end)
+    local zero_guard=(not zero_ok) or zero_value~=zero_value
+    local neg_zero_guard=(not neg_zero_ok) or neg_zero_value<0
+    if not zero_guard or not neg_zero_guard then return nil end
+    local zero_link=bxor(wire_bit(zero_ok,0x761,zero_guard),wire_bit(neg_zero_ok,0x762,neg_zero_guard))
+    if not mesh_edge('zero',true,zero_link,2) then return nil end
+
+    local fenv_ok,fenv_seen,fenv_marker,fenv_restored=pcall0(function()
+        local function fenv_probe()
+            return rawget0(getfenv0(fenv_probe),'__trace_marker')
+        end
+        local original=getfenv0(fenv_probe)
+        local marker=wire_bit(mesh_seed,0x770,true)
+        local sandbox={__trace_marker=marker}
+        setmetatable0(sandbox,{__index=original})
+        local switched=pcall0(setfenv0,fenv_probe,sandbox)
+        local probe_ok,observed=pcall0(fenv_probe)
+        local restore_ok=pcall0(setfenv0,fenv_probe,original)
+        local restored_ok,restored_env=pcall0(getfenv0,fenv_probe)
+        if not switched or not probe_ok or not restore_ok or not restored_ok then return nil end
+        return observed,marker,rawequal0(restored_env,original)
+    end)
+    local fenv_valid=fenv_ok and fenv_restored and type0(fenv_seen)=='number' and fenv_seen==fenv_marker
+    if not fenv_valid then return nil end
+    local fenv_link=wire_bit(fenv_marker,0xC05,true)
+    if not mesh_edge('fenv',fenv_valid,fenv_link,3) then return nil end
+
+    local cross_env_ok,cross_env_link=cross_env_power(mesh_seed)
+    if not mesh_edge('cross_env',cross_env_ok,cross_env_link,4) then return nil end
+
+    local virtual_stack_ok,virtual_stack_link=virtual_256_probe(mesh_seed)
+    if not mesh_edge('virtual_stack',virtual_stack_ok,virtual_stack_link,5) then return nil end
+
+    local nested_fenv_ok,nested_fenv_link=nested_fenv_call_probe(mesh_seed)
+    if not mesh_edge('nested_fenv',nested_fenv_ok,nested_fenv_link,6) then return nil end
+
+    local branch_fenv_ok,branch_fenv_link=branch_fenv_probe(mesh_seed)
+    if not mesh_edge('branch_fenv',branch_fenv_ok,branch_fenv_link,7) then return nil end
+
+    local terminal_arch_ok,terminal_arch_link=terminal_arch_probe(mesh_seed)
+    if not mesh_edge('terminal_arch',terminal_arch_ok,terminal_arch_link,8) then return nil end
+
+    local top_level_ok,top_level_link=top_level_mod_probe(mesh_seed)
+    if not mesh_edge('top_level',top_level_ok,top_level_link,9) then return nil end
+
+    local pcall_lane_ok,pcall_lane_link=pcall_lane_probe(mesh_seed)
+    if not mesh_edge('pcall_lane',pcall_lane_ok,pcall_lane_link,10) then return nil end
+
+    local metamethod_env_ok,metamethod_env_link=metamethod_env_probe(mesh_seed)
+    if not mesh_edge('metamethod_env',metamethod_env_ok,metamethod_env_link,11) then return nil end
+
+    local env_math_root=make_env_math(mesh_seed,0,nil)
+    local env_math_add=env_math_root+wire_bit(mesh_seed,0x773,true)
+    local env_math_add2=env_math_add+env_math_add.value
+    local env_math_call=env_math_add2(u32(mesh_seed+1))
+    local env_math_eq=env_math_root==env_math_add2
+    local env_math_valid=env_math_eq and type0(env_math_call)=='table' and env_math_add2.depth==2 and env_math_call.depth==3 and type0(env_math_call.value)=='number' and type0(rawget0(env_math_call,'__meta20'))=='number' and stack_state.count>=30 and stack_state.power_value==2^64
+    if not env_math_valid then return nil end
+    local env_math_link=bxor(wire_bit(env_math_call.value,0xC06,true),wire_bit(env_math_add2.value,0xC07,false),u32(stack_state.hash))
+    if not mesh_edge('env_math',env_math_valid,env_math_link,12) then return nil end
+
+    local inner_root=make_inner(mesh_seed,0,nil)
+    for slot=1,12 do
+        inner_root=inner_root.next(u32(mesh_seed+slot))
+    end
+    local inner_mul=inner_root*(-17)
+    local inner_mod=inner_mul%(abs0(fenv_marker)+1)
+    local inner_pow=inner_mod^(-3)
+    local inner_eq=inner_root==inner_mod
+    local inner_loop=inner_mod==inner_pow
+    local inner_parent=rawget0(inner_mod,'__inner')
+    local inner_valid=inner_eq and inner_loop and inner_mod.depth==14 and inner_pow.depth==15 and type0(inner_parent)=='table' and rawequal0(inner_parent,inner_mul) and type0(rawget0(inner_mod,'__meta20'))=='number' and trace_state.count>0 and type0(trace_state.hash)=='number'
+    if not inner_valid then return nil end
+    local inner_link=bxor(wire_bit(inner_mod.value,0x7E0,true),wire_bit(inner_pow.value,0x7E1,false),u32(trace_state.hash))
+    if not mesh_edge('inner',inner_valid,inner_link,13) then return nil end
+
+    local nil_value=rawget0(env_backing,'missing')
+    local nil_link
+    if nil_value==nil then
+        nil_link=wire_bit(nil_value,0x91,false)
+    else
+        return nil
+    end
+    if not mesh_edge('nil',true,nil_link,14) then return nil end
+
+    local exponent=50.5
+    local high_power=power_signed(2,exponent)
+    local low_power=power_signed(2,-exponent)
+    if not close0(high_power*low_power,1,1e-12) or high_power<=2^50 or high_power>=2^51 then return nil end
+
+    local signed_trace={}
+    local signed_type_ok=true
+    local function signed_terminal(value,feed)
+        local local_value=value
+        if type0(local_value)~='number' or typeof0(local_value)~='number' then signed_type_ok=false end
+        local jumped=-(high_power+abs0(local_value)+abs0(feed)+wire_bit(local_value,0xA1,true)+1)
+        signed_trace[#signed_trace+1]=jumped
+        return jumped
+    end
+    local function make_signed_local(slot,next_fn)
+        return function(value,feed)
+            local local_value=value
+            if type0(local_value)~='number' or typeof0(local_value)~='number' then signed_type_ok=false end
+            local jump_equation=wire_bit(local_value,slot,true)
+            local jumped=-(high_power+abs0(local_value)+jump_equation+slot+1)
+            signed_trace[#signed_trace+1]=jumped
+            return next_fn(jumped,u32(feed+slot+1))
+        end
+    end
+    local signed_chain=signed_terminal
+    for slot=1,6 do signed_chain=make_signed_local(slot,signed_chain) end
+    local signed_result=signed_chain(-3,mesh_seed)
+    local signed_ok=signed_type_ok and #signed_trace==7 and type0(signed_result)=='number' and typeof0(signed_result)=='number'
+    for i=1,#signed_trace do
+        if signed_trace[i]>=0 or (i>1 and signed_trace[i]==signed_trace[i-1]) then signed_ok=false end
+    end
+    if not signed_ok then return nil end
+    local signed_link=bxor(wire_bit(signed_result,0xC08,true),wire_bit(high_power,0xC09,false),wire_bit(low_power,0xC0A,true),wire_bit(#signed_trace,0xC0B,false))
+    if not mesh_edge('signed',signed_ok,signed_link,15) then return nil end
+
+    local previous=rawget0(env_backing,'coupled')
+    env_proxy.coupled=wire_bit(mesh_seed,0xB1,true)
+    local proxy_value=env_proxy.coupled
+    if previous==nil then rawset0(env_backing,'coupled',nil) else rawset0(env_backing,'coupled',previous) end
+    if type0(proxy_value)~='number' or typeof0(proxy_value)~='number' then return nil end
+    local coupled_link=wire_bit(proxy_value,0xC0C,true)
+    if not mesh_edge('coupled',true,coupled_link,16) then return nil end
+
+    local reentry_ok=true
+    local reentry_link=wire_bit(reentry_level,0xD0F,true)
+    if reentry_level==0 then
+        reentry_ok,reentry_link=coupled_reentry_probe(mesh_seed,coupled_check,reentry_level)
+        if not mesh_edge('coupled_reentry',reentry_ok,reentry_link,17) then return nil end
+    end
+
+    local mesh_fold=mesh_hash
+    for index=1,#mesh_links do
+        mesh_fold=u32(bxor(mesh_fold,mesh_links[index],wire_bit(index,0xC80+index,index%2==0)))
+    end
+    local expected_mesh_count=reentry_level==0 and 17 or 16
+    local mesh_valid=mesh_count==expected_mesh_count and #mesh_links==mesh_count and type0(mesh_seed)=='number' and type0(mesh_fold)=='number' and mesh_fold~=0
+    if not mesh_valid then return nil end
+
+    local result=bxor(u32(signed_result),wire_bit(proxy_value,0xC1,false))
+    result=bxor(result,nil_link)
+    result=bxor(result,wire_bit(scg_power.value,0x505,true))
+    result=bxor(result,wire_bit(scg_power.peerValue,0x506,false))
+    result=bxor(result,zero_link)
+    result=bxor(result,wire_bit(fenv_marker,0x772,true))
+    result=bxor(result,u32(cross_env_link))
+    result=bxor(result,u32(virtual_stack_link))
+    result=bxor(result,u32(nested_fenv_link))
+    result=bxor(result,u32(branch_fenv_link))
+    result=bxor(result,u32(terminal_arch_link))
+    result=bxor(result,u32(top_level_link))
+    result=bxor(result,u32(pcall_lane_link))
+    result=bxor(result,u32(metamethod_env_link))
+    result=bxor(result,u32(fenv_link))
+    result=bxor(result,u32(mesh_hash))
+    result=bxor(result,u32(mesh_fold))
+    result=bxor(result,u32(mesh_seed))
+    result=bxor(result,u32(reentry_link))
+    result=bxor(result,wire_bit(mesh_count,0xCFF,true))
+    result=bxor(result,wire_bit(env_math_call.value,0x7F3,true))
+    result=bxor(result,u32(stack_state.hash))
+    result=bxor(result,inner_link)
+    result=bxor(result,u32(trace_state.hash))
+    return u32(result)
+end
+
+local function mix(a,b)
+    local link=bxor(wire_bit(a,0x101,true),wire_bit(b,0x102,false))
+    a=u32(bxor(bxor(a,b),link))
+    a=u32(bxor(a,lshift(a,5)))
+    a=u32(bxor(a,rshift(a,7)))
+    a=u32(bxor(a,lshift(a,3)))
+    return a
+end
+
+local function mix5(a,b,c,d,e,feed)
+    feed=u32(bxor(feed,wire_bit(feed,0x105,true)))
+    a=u32(bxor(a,feed))
+    b=u32(bxor(b,lshift(feed,3)))
+    c=u32(bxor(c,rshift(feed,5)))
+    d=u32(bxor(d,lshift(feed,7)))
+    e=u32(bxor(e,rshift(feed,11)))
+    a=u32(bxor(a,b))
+    a=u32(bxor(a,lshift(a,5)))
+    b=u32(bxor(b,c))
+    b=u32(bxor(b,rshift(b,7)))
+    c=u32(bxor(c,d))
+    c=u32(bxor(c,lshift(c,9)))
+    d=u32(bxor(d,e))
+    d=u32(bxor(d,rshift(d,13)))
+    e=u32(bxor(e,a))
+    e=u32(bxor(e,lshift(e,3)))
+    a=u32(bxor(a,rshift(e,2)))
+    b=u32(bxor(b,lshift(a,4)))
+    c=u32(bxor(c,rshift(b,6)))
+    d=u32(bxor(d,lshift(c,8)))
+    e=u32(bxor(e,rshift(d,10)))
+    return a,b,c,d,e
+end
+
+local function model_check(seed)
+    local coupled=coupled_check(seed)
+    if type0(coupled)~='number' then return nil end
+    if type0(pi0)~='number' or type0(sin0)~='function' or type0(cos0)~='function' or type0(sqrt0)~='function' then return nil end
+    local radius=1.25+band(bxor(seed,wire_bit(seed,0x106,true)),0xFF)/128
+    local angle=(seed%6283)/1000
+    local circumference=2*pi0*radius
+    local area=pi0*radius*radius
+    if not close0(circumference/radius,2*pi0,1e-12) or not close0(area/(radius*radius),pi0,1e-12) then return nil end
+
+    local g1=sin0(angle)
+    local g2=cos0(angle)
+    local g3=sin0(angle+pi0/3)
+    local g4=cos0(angle+pi0/5)
+    local g5=sin0(angle+pi0/7)
+    for i=1,5 do
+        local n1=(g2+g3-g4+g5)/2
+        local n2=(g3+g4-g5+g1)/2
+        local n3=(g4+g5-g1+g2)/2
+        local n4=(g5+g1-g2+g3)/2
+        local n5=(g1+g2-g3+g4)/2
+        g1,g2,g3,g4,g5=n1,n2,n3,n4,n5
+    end
+    local graph_cross=(g1+g2)*g3-(g4-g5)*g1
+    local graph_expanded=g1*g3+g2*g3-g4*g1+g5*g1
+    local graph_norm=sqrt0(g1*g1+g2*g2+g3*g3+g4*g4+g5*g5)
+    if graph_norm~=graph_norm or not close0(graph_cross,graph_expanded,1e-12) then return nil end
+
+    local resistance=2.5+band(seed,0x1F)/16
+    local current=0.125+band(seed,0x0F)/128
+    local voltage=current*resistance
+    local power=voltage*current
+    local duration=3.25+band(seed,0x07)/16
+    local charge=current*duration
+    local energy=power*duration
+    if not close0(voltage,current*resistance,1e-12) or not close0(power,voltage*current,1e-12) or not close0(charge,current*duration,1e-12) or not close0(energy,power*duration,1e-12) then return nil end
+
+    local base=1.125+band(seed,0x07)/64
+    local inverse=power_signed(base,-5)
+    if not close0(inverse*power_signed(base,5),1,1e-10) then return nil end
+    local result=abs0(graph_cross+graph_norm+voltage+power+charge+energy+inverse+coupled)*1000000
+    return u32(floor0(result))
+end
+
+local function make_mix_layer(next_fn,key,mode)
+    return function(a,b,c,d,e,feed)
+        local bridge=u32(bxor(bxor(feed,key),wire_bit(feed,key,band(mode,0xFF)~=0)))
+        if band(bridge,mode)==0 then
+            local x1,x2,x3,x4,x5=next_fn(a,b,c,d,e,bridge)
+            return x1,x2,x3,x4,x5
+        end
+        local x5,x4,x3,x2,x1=next_fn(e,d,c,b,a,bridge)
+        return x1,x2,x3,x4,x5
+    end
+end
+
+local mix_chain=mix5
+mix_chain=make_mix_layer(mix_chain,0x13579BDF,1)
+mix_chain=make_mix_layer(mix_chain,0x2468ACE1,2)
+mix_chain=make_mix_layer(mix_chain,0x0F1E2D3C,4)
+mix_chain=make_mix_layer(mix_chain,0x55AA33CC,8)
+mix_chain=make_mix_layer(mix_chain,0xC3EF19A7,16)
+
+local function jump0(fn,a,b,c,d,e,feed)
+    feed=u32(bxor(feed,wire_bit(feed,0x201,true)))
+    return fn(a,b,c,d,e,feed)
+end
+
+local function jump1(fn,a,b,c,d,e,feed)
+    feed=u32(bxor(feed,wire_bit(feed,0x202,false)))
+    local x1,x2,x3,x4,x5=fn(a,b,c,d,e,feed)
+    return x1,x2,x3,x4,x5
+end
+
+local function jump2(fn,a,b,c,d,e,feed)
+    feed=u32(bxor(feed,wire_bit(feed,0x203,true)))
+    local x1,x2,x3,x4,x5=fn(a,b,c,d,e,feed)
+    return x1,x2,x3,x4,x5
+end
+
+local function jump3(fn,a,b,c,d,e,feed)
+    feed=u32(bxor(feed,wire_bit(feed,0x204,false)))
+    local x1,x2,x3,x4,x5=fn(a,b,c,d,e,feed)
+    return x1,x2,x3,x4,x5
+end
+
+local function jump4(fn,a,b,c,d,e,feed)
+    feed=u32(bxor(feed,wire_bit(feed,0x205,true)))
+    local x1,x2,x3,x4,x5=fn(a,b,c,d,e,feed)
+    return x1,x2,x3,x4,x5
+end
+
+local jump_routes={jump0,jump1,jump2,jump3,jump4}
+
+local function jump_mix(a,b,c,d,e,feed)
+    feed=u32(bxor(feed,wire_bit(feed,0x206,band(feed,1)~=0)))
+    local route=(band(feed,31)%5)+1
+    return jump_routes[route](mix_chain,a,b,c,d,e,feed)
+end
+
+local function cross_reason(a,b,c,d,e,feed)
+    local x1=u32(bxor(a,c))
+    local x2=u32(bxor(b,d))
+    local x3=u32(bxor(e,x1))
+    local x4=u32(bxor(x2,x3))
+    local x5=u32(bxor(bxor(feed,x4),wire_bit(feed,0x207,true)))
+    return u32(bxor(x5,lshift(x1,3)))
+end
+
+local function advance5(a,b,c,d,e,feed,slot)
+    local bridge=cross_reason(a,b,c,d,e,u32(bxor(feed,wire_bit(slot,0x208,slot%2==0))))
+    a,b,c,d,e=jump_mix(a,b,c,d,e,bridge)
+    if slot==511 then
+        local cross=cross_reason(e,d,c,b,a,bridge)
+        a,b,c,d,e=jump_mix(a,b,c,d,e,cross)
+    end
+    return a,b,c,d,e
+end
+
+local function snapshot(env)
+    if type0(env)~='table' then return nil end
+    return {
+        env,
+        rawget0(env,'buffer'),
+        rawget0(env,'bit32'),
+        rawget0(env,'pcall'),
+        rawget0(env,'xpcall'),
+        rawget0(env,'rawget'),
+        rawget0(env,'rawset'),
+        rawget0(env,'setmetatable'),
+        rawget0(env,'getmetatable'),
+    }
+end
+
+local function stable(a,b)
+    if type0(a)~='table' or type0(b)~='table' then return false end
+    for i=1,9 do
+        if not rawequal0(a[i],b[i]) then return false end
+    end
+    return true
+end
+
+local before=snapshot(root)
+local ok=true
+
+do
+    local marker={}
+    local pa,pb,pc,pd=pcall0(function() return marker,seed0,0x31,'stable' end)
+    if not pa or not rawequal0(pb,marker) or pc~=seed0 or pd~=0x31 then ok=false end
+    local ea={}
+    local eb,ev=pcall0(function() error0(ea) end)
+    if eb or not rawequal0(ev,ea) then ok=false end
+    local xa={}
+    local xb,xv=xpcall0(function() error0(xa) end,function(value) return value end)
+    if xb or not rawequal0(xv,xa) then ok=false end
+    local depth=0
+    local function nested(n)
+        if n==0 then return depth end
+        depth=depth+1
+        local a,b=pcall0(function() return nested(n-1) end)
+        if not a then return nil end
+        return b
+    end
+    local nestedValue=nested(45)
+    local pcall_state=pa and rawequal0(pb,marker) and pc==seed0 and pd==0x31 and not eb and rawequal0(ev,ea) and not xb and rawequal0(xv,xa) and nestedValue==depth
+    if not pcall_state then ok=false end
+    env_proxy.pcall=wire_bit(pcall_state,0x301,pcall_state)
+end
+
+do
+    local backing={}
+    local events={}
+    local mt={
+        __index=function(_,key)
+            events[#events+1]=key=='a' and 0x11 or 0x12
+            return rawget0(backing,key)
+        end,
+        __newindex=function(_,key,value)
+            events[#events+1]=key=='a' and 0x21 or 0x22
+            rawset0(backing,key,value)
+        end,
+        __call=function(_,value)
+            events[#events+1]=0x31
+            return value+seed0%17
+        end,
+    }
+    local proxy=setmetatable0({},mt)
+    proxy.a=seed0%251
+    local value=proxy.a
+    local called=proxy(7)
+    local metatable_state=rawequal0(getmetatable0(proxy),mt) and value==seed0%251 and called==7+seed0%17 and rawget0(backing,'a')==seed0%251 and #events==3 and events[1]==0x21 and events[2]==0x11 and events[3]==0x31
+    if not metatable_state then ok=false end
+    env_proxy.meta=wire_bit(metatable_state,0x302,metatable_state)
+end
+
+local function round(seed)
+    local size=1024
+    local data={}
+    local buf=create(size)
+    if blen(buf)~=size then return nil end
+    local model=model_check(seed)
+    if type0(model)~='number' then return nil end
+    local a=u32(bxor(seed,model))
+    local b=u32(bxor(bxor(seed,0xA5C31F27),model))
+    local c=u32(bxor(bor(seed,0x13579BDF),model))
+    local d=u32(bxor(bxor(seed,0xC3EF19A7),model))
+    local e=u32(bxor(bor(seed,0x91E10DA5),model))
+    for i=0,size-1 do
+        local feed=u32(bxor(bxor(u32(seed0+i*0x9E3779B9),model),wire_bit(seed,i,i%2==0)))
+        a,b,c,d,e=advance5(a,b,c,d,e,feed,i)
+        local value=band(bxor(a,c),0xFF)
+        data[i+1]=value
+        local position=(i*17+29)%size
+        writeu8(buf,position,value)
+    end
+    for position=0,size-1 do
+        local source=((position-29)*241)%size
+        if readu8(buf,position)~=data[source+1] then return nil end
+    end
+    local raw=btostring(buf)
+    if type0(raw)~='string' or #raw~=size then return nil end
+    local clone=fromstring(raw)
+    if blen(clone)~=size or btostring(clone)~=raw then return nil end
+    a=u32(bxor(seed,model))
+    b=u32(bxor(bxor(seed,0x6D2B79F1),model))
+    c=u32(bxor(bor(seed,0x3C6EF372),model))
+    d=u32(bxor(bxor(seed,0xDAA66D2B),model))
+    e=u32(bxor(bor(seed,0xBB67AE85),model))
+    for i=0,size-1 do
+        local position=(i*17+29)%size
+        local feed=u32(bxor(readu8(clone,position)+i*257,model))
+        a,b,c,d,e=advance5(a,b,c,d,e,feed,i)
+    end
+    local digest=bxor(a,b)
+    digest=bxor(digest,c)
+    digest=bxor(digest,d)
+    digest=bxor(digest,e)
+    return u32(digest)
+end
+
+local first=round(u32(bxor(seed0,0xA5C31F27)))
+local second=round(u32(bor(seed0,0x13579BDF)))
+if type0(first)~='number' or type0(second)~='number' or first==second then ok=false end
+
+do
+    local function canonical(value)
+        local current=value
+        local hops=0
+        while type0(current)=='table' and hops<80 do
+            local inner=rawget0(current,'__inner')
+            if type0(inner)~='table' then break end
+            current=inner
+            hops=hops+1
+        end
+        return current
+    end
+
+    local proxy_mt={}
+    local function make_proxy(value,depth,inner)
+        local proxy={}
+        rawset0(proxy,'__v',u32(value))
+        rawset0(proxy,'__depth',depth)
+        if type0(inner)=='table' then rawset0(proxy,'__inner',inner) end
+        return setmetatable0(proxy,proxy_mt)
+    end
+
+    local function proxy_value(value)
+        return type0(value)=='table' and rawget0(value,'__v') or nil
+    end
+
+    local function proxy_depth(value)
+        return type0(value)=='table' and rawget0(value,'__depth') or nil
+    end
+
+    proxy_mt.__index=function(self,key)
+        local inner=rawget0(self,'__inner')
+        if key=='value' then return proxy_value(self) end
+        if key=='depth' then return proxy_depth(self) end
+        if key=='next' then
+            return function(step)
+                local current=proxy_value(self)
+                local depth=proxy_depth(self) or 0
+                return make_proxy(mix(current,u32(step+depth)),depth+1,self)
+            end
+        end
+        if type0(inner)=='table' then return inner[key] end
+        return nil
+    end
+
+    proxy_mt.__newindex=function(self,key,value)
+        if key=='value' then
+            rawset0(self,'__v',u32(value))
+            return
+        end
+        if key=='depth' then
+            rawset0(self,'__depth',value)
+            return
+        end
+        local inner=rawget0(self,'__inner')
+        if type0(inner)=='table' then
+            inner[key]=value
+        else
+            rawset0(self,key,value)
+        end
+    end
+
+    proxy_mt.__call=function(self,step)
+        local current=proxy_value(self)
+        local depth=proxy_depth(self) or 0
+        return make_proxy(mix(current,u32(step+depth+1)),depth+1,self)
+    end
+
+    proxy_mt.__eq=function(left,right)
+        return proxy_value(left)==proxy_value(right) and proxy_depth(left)==proxy_depth(right)
+    end
+
+    local root_proxy=make_proxy(seed0,0)
+    local left=make_proxy(seed0,0,make_proxy(seed0,0,make_proxy(seed0,0,make_proxy(seed0,0,make_proxy(seed0,0,root_proxy)))))
+    local right=make_proxy(seed0,0,make_proxy(seed0,0,make_proxy(seed0,0,make_proxy(seed0,0,make_proxy(seed0,0)))))
+    if not rawequal0(canonical(left),root_proxy) or type0(canonical(right))~='table' then ok=false end
+    if not (left==right) then ok=false end
+    if left.value~=seed0 or left.depth~=0 then ok=false end
+    local equal_set={}
+    for i=1,5 do
+        local candidate=make_proxy(seed0,0)
+        for j=1,5+i do candidate=make_proxy(seed0,0,candidate) end
+        equal_set[i]=candidate
+        if not (left==candidate) then ok=false end
+    end
+    local unequal=left
+    for i=1,5 do
+        unequal=unequal(0x60+i)
+        if unequal==left then ok=false end
+    end
+
+    local chain_ok,chain=xpcall0(function()
+        local a=left(0x11)
+        local b=a.next(0x22)
+        local c=b(0x33)
+        local d=c.next(0x44)
+        local e=d(0x55)
+        return e
+    end,function(value)
+        return value
+    end)
+    if not chain_ok or type0(chain)~='table' then ok=false end
+    if chain_ok and type0(canonical(chain))~='table' then ok=false end
+
+    if chain_ok then
+        local clone=make_proxy(chain.value,chain.depth,make_proxy(chain.value,chain.depth,make_proxy(chain.value,chain.depth,make_proxy(chain.value,chain.depth,make_proxy(chain.value,chain.depth)))))
+        if not (chain==clone) then ok=false end
+        local changed=chain
+        for i=1,5 do changed=changed(0x40+i) end
+        if changed==chain then ok=false end
+        local old_value=chain.value
+        for i=1,5 do chain.value=chain.value+i end
+        if chain.value==old_value or chain==clone then ok=false end
+    end
+
+    local mutation=make_proxy(seed0,1)
+    for i=1,5 do
+        mutation.value=mutation.value+i*7
+        mutation.depth=mutation.depth+2
+    end
+    local mutation_clone=make_proxy(mutation.value,mutation.depth,make_proxy(mutation.value,mutation.depth,make_proxy(mutation.value,mutation.depth)))
+    if not (mutation==mutation_clone) then ok=false end
+end
+
+local after=snapshot(root)
+local env_dump_ok=stable(before,after)
+if not env_dump_ok then ok=false end
+
+local function global_atom_proxy_probe(seed)
+    local run_ok,valid,signature=pcall0(function()
+        local atom_values={
+            p=wire_bit(seed,0xBF0,true),
+            a=wire_bit(seed,0xBF1,false),
+            s=wire_bit(seed,0xBF2,true),
+            f=wire_bit(seed,0xBF3,false),
+            i=wire_bit(seed,0xBF4,true),
+            l=wire_bit(seed,0xBF5,false),
+        }
+        local shadows={}
+        local proxy_nodes={}
+        local make_proxy
+        local proxy_index=function(self,key)
+            local atom=rawget0(atom_values,key)
+            if atom~=nil then return atom end
+            local source=rawget0(self,'__source')
+            if key=='_G' and type0(source)=='table' and (rawget0(self,'__depth') or 0)<8 then
+                return make_proxy(source,(rawget0(self,'__depth') or 0)+1,self)
+            end
+            local value=type0(source)=='table' and rawget0(source,key) or nil
+            local depth=rawget0(self,'__depth') or 0
+            if type0(value)=='table' and depth<8 then return make_proxy(value,depth+1,self) end
+            return value
+        end
+        local proxy_newindex=function(self,key,value)
+            local shadow=rawget0(shadows,self)
+            if type0(shadow)=='table' then rawset0(shadow,key,value) end
+        end
+        local proxy_call=function(self)
+            local parent=rawget0(self,'__inner')
+            return type0(parent)=='table' and parent or self
+        end
+        local proxy_eq=function(left,right)
+            return rawequal0(rawget0(left,'__source'),rawget0(right,'__source')) and rawget0(left,'__depth')==rawget0(right,'__depth')
+        end
+        make_proxy=function(source,depth,parent)
+            local proxy={}
+            local shadow={}
+            rawset0(proxy,'__source',source)
+            rawset0(proxy,'__depth',depth)
+            if type0(parent)=='table' then rawset0(proxy,'__inner',parent) end
+            shadows[proxy]=shadow
+            local mt={__index=proxy_index,__newindex=proxy_newindex,__call=proxy_call,__eq=proxy_eq,__metatable='userdata-proxy'}
+            rawset0(proxy,'__mt',mt)
+            local node=setmetatable0(proxy,mt)
+            proxy_nodes[#proxy_nodes+1]=node
+            return node
+        end
+
+        local root_proxy=make_proxy(_G,0,nil)
+        local global_proxy=root_proxy
+        for depth=1,6 do
+            global_proxy=make_proxy(rawget0(global_proxy,'__source'),depth,global_proxy)
+        end
+        local proxy_a=make_proxy(_G,7,global_proxy)
+        local proxy_b=make_proxy(_G,7,global_proxy)
+        local proxy_env=setmetatable0({proxy_key='proxy'}, {__index=global_proxy})
+        local bound={}
+        local function bind_env(fn,env)
+            if type0(fn)~='function' then return false end
+            local old_ok,old_env=pcall0(getfenv0,fn)
+            local set_ok=pcall0(setfenv0,fn,env)
+            if not old_ok or type0(old_env)~='table' or not set_ok then return false end
+            bound[#bound+1]={fn=fn,env=old_env}
+            return true
+        end
+
+        local proxy_bound=bind_env(proxy_index,proxy_env) and bind_env(proxy_newindex,proxy_env) and bind_env(proxy_call,proxy_env) and bind_env(proxy_eq,proxy_env)
+        local pass_letters={'p','a','s','s'}
+        local fail_letters={'f','a','i','l'}
+        local atom_functions={}
+        local atom_envs={}
+        local function make_atom(letter,index)
+            local atom_env=setmetatable0({atom_key=letter,atom_index=index},{__index=global_proxy})
+            local atom_fn=function()
+                local g=_G
+                local key=atom_key
+                local value=g[key]
+                return key,value,g
+            end
+            return atom_fn,atom_env
+        end
+        local function run_atoms(letters,offset)
+            local state=true
+            local score=0
+            for index=1,#letters do
+                local letter=letters[index]
+                local atom_fn,atom_env=make_atom(letter,offset+index)
+                atom_functions[#atom_functions+1]=atom_fn
+                atom_envs[#atom_envs+1]=atom_env
+                if not bind_env(atom_fn,atom_env) then state=false end
+                local call_ok,key,value,g=pcall0(atom_fn)
+                local expected=rawget0(atom_values,letter)
+                local meta_ok=call_ok and type0(g)=='table' and getmetatable0(g)=='userdata-proxy'
+                if not call_ok or key~=letter or value~=expected or not meta_ok then state=false else score=score+1 end
+            end
+            return state,score
+        end
+
+        local pass_ok,pass_score=run_atoms(pass_letters,0)
+        local fail_ok,fail_score=run_atoms(fail_letters,4)
+        global_proxy.proxy_write=wire_bit(seed,0xBF6,true)
+        local shadow_write=rawget0(shadows[global_proxy],'proxy_write')
+        local proxy_child=global_proxy()
+        local proxy_equal=proxy_a==proxy_b
+        local proxy_meta=getmetatable0(global_proxy)
+        local proxy_route=type0(proxy_child)=='table' and type0(proxy_meta)=='string' and proxy_meta=='userdata-proxy' and proxy_equal and shadow_write==wire_bit(seed,0xBF6,true)
+
+        local restore_ok=true
+        for index=#bound,1,-1 do
+            local entry=bound[index]
+            if not pcall0(setfenv0,entry.fn,entry.env) then restore_ok=false end
+        end
+        local restored_ok=true
+        for index=1,#bound do
+            local entry=bound[index]
+            local check_ok,current=pcall0(getfenv0,entry.fn)
+            if not check_ok or not rawequal0(current,entry.env) then restored_ok=false end
+        end
+
+        local depth_valid=#proxy_nodes>=9 and rawget0(global_proxy,'__depth')==6 and #atom_functions==8 and #atom_envs==8 and #bound==12
+        local link=u32(bxor(wire_bit(pass_score,0xBF7,true),wire_bit(fail_score,0xBF8,false),wire_bit(rawget0(global_proxy,'__depth'),0xBF9,true),wire_bit(shadow_write,0xBFA,false),wire_bit(proxy_route,0xBFB,true)))
+        return pass_ok and fail_ok and proxy_bound and proxy_route and restore_ok and restored_ok and depth_valid and type0(link)=='number',link
+    end)
+    if not run_ok then return false,0 end
+    return valid==true,signature
+end
+
+local function final_global_gate(seed,env_ok,proxy_ok,proxy_link)
+    local g0=_G
+    local g1=rawget0(g0,'_G')
+    if type0(g1)~='table' then g1=g0 end
+    local ge=g1
+    if type0(getgenv0)=='function' then
+        local env_call_ok,env_value=pcall0(getgenv0)
+        if env_call_ok and type0(env_value)=='table' then ge=env_value end
+    end
+    local g2=rawget0(ge,'_G')
+    if type0(g2)~='table' then g2=ge end
+    local power_lo,power_hi,power_value=power64(2,64)
+    local forward=wire_bit(u32(bxor(seed,power_lo,env_key)),0x7F8,true)
+    local reverse=wire_bit(u32(bxor(seed,power_hi,env_key)),0x7F9,false)
+    local route=u32(bxor(forward,reverse,u32(power_value),env_key,u32(proxy_link or 0)))
+    local return_link=wire_bit(route,0x7FA,rawequal0(g2,g1) or rawequal0(g2,g0))
+    local check=u32(bxor(route,return_link,wire_bit(route,0x7FB,true)))
+    local mirror=u32(bxor(check,wire_bit(route,0x7FC,false)))
+    local mirror_check=u32(bxor(check,wire_bit(route,0x7FC,false)))
+    return env_ok and proxy_ok and type0(proxy_link)=='number' and type0(g0)=='table' and type0(ge)=='table' and type0(g2)=='table' and type0(power_value)=='number' and mirror==mirror_check
+end
+
+local atom_proxy_ok,atom_proxy_link=global_atom_proxy_probe(seed0)
+if not atom_proxy_ok then ok=false end
+if not final_global_gate(seed0,env_dump_ok,atom_proxy_ok,atom_proxy_link) then ok=false end
+
+if ok then
+    print('pass')
+    print('PASS REAL')
+else
+    print('fail')
+    return
+end
+
+--all pass--
+print("test")
+print("009 is real")
